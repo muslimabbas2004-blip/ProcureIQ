@@ -1,0 +1,1 @@
+export default{content:['./index.html','./src/**/*.{ts,tsx}'],theme:{extend:{colors:{navy:'#14243A',royal:'#356AE6',teal:'#12B8A6',bg:'#F5F7FB',ink:'#19283B',mute:'#718096'},fontFamily:{sans:['"IBM Plex Sans"','system-ui','sans-serif'],display:['"Fraunces"','Georgia','serif']}}}}

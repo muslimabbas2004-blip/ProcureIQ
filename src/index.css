@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-slate-50 text-slate-900 font-sans antialiased;
+}
+
+.card {
+  @apply bg-white rounded-xl border border-slate-200/80 p-5 shadow-sm transition-all duration-200;
+}
+
+.card-hover {
+  @apply hover:shadow-md hover:border-slate-300;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-royal text-white text-sm font-medium shadow-sm hover:bg-blue-600 active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-royal;
+}
+
+.btn2 {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none;
+}
+
+.btn-danger {
+  @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-700 text-xs font-medium hover:bg-rose-100 transition-colors;
+}
+
+.badge {
+  @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+th {
+  @apply text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4 border-b border-slate-200/80 bg-slate-50/70;
+}
+
+td {
+  @apply py-3 px-4 border-b border-slate-100 text-sm text-slate-700;
+}
+
+tbody tr:hover {
+  @apply bg-blue-50/40;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}

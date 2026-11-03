@@ -1,0 +1,7 @@
+import{useState,FormEvent}from'react';import{useNavigate}from'react-router-dom';import{useAuth}from'../context/Auth';import{DEMO_PASSWORD}from'../services/authService';
+export default function Login(){const{signIn}=useAuth();const go=useNavigate();const[e,setE]=useState('procurement@demo.com');const[p,setP]=useState('');const[err,setErr]=useState('');
+ const sub=async(ev:FormEvent)=>{ev.preventDefault();try{await signIn(e,p);go('/app')}catch(x){setErr((x as Error).message)}};
+ return<div className="min-h-screen grid place-items-center"><form onSubmit={sub} className="card w-96 space-y-3"><h1 className="font-display text-2xl">Sign in to PROCUREIQ</h1>
+  <input className="w-full border rounded-md p-2" value={e} onChange={x=>setE(x.target.value)} aria-label="Email"/><input className="w-full border rounded-md p-2" type="password" placeholder="Password" value={p} onChange={x=>setP(x.target.value)} aria-label="Password"/>
+  {err&&<p className="text-red-600 text-sm" role="alert">{err}</p>}<button className="btn w-full">Sign in</button>
+  <div className="text-xs text-mute border-t pt-3">Demo accounts (password <b>{DEMO_PASSWORD}</b>):<br/><button type="button" className="underline" onClick={()=>setE('procurement@demo.com')}>Purchase Department (procurement@demo.com)</button> · <button type="button" className="underline" onClick={()=>setE('admin@demo.com')}>Hemani Purchase (admin@demo.com)</button><br/>Frontend simulation only; the backend must enforce real access control.</div></form></div>}
