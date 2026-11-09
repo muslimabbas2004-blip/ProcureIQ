@@ -339,7 +339,7 @@ export async function fetchDashboardOverview(): Promise<DashboardOverviewData> {
         pareto: res.pareto || localPareto
       };
     } catch (err) {
-      console.warn('Backend overview fetch failed, using local simulation:', err);
+      throw err;
     }
   }
 
@@ -363,7 +363,7 @@ export async function fetchDashboardOverview(): Promise<DashboardOverviewData> {
 export async function fetchVendorsList(): Promise<Vendor[]> {
   if (!API.mock) {
     try {
-      return await http<Vendor[]>('/api/vendors');
+      return (await http<{ data: Vendor[] }>('/api/vendors?pageSize=500')).data;
     } catch (err) {
       console.warn('Backend vendors fetch failed, using local:', err);
     }
@@ -374,7 +374,7 @@ export async function fetchVendorsList(): Promise<Vendor[]> {
 export async function fetchItemsList(): Promise<Item[]> {
   if (!API.mock) {
     try {
-      return await http<Item[]>('/api/items');
+      return (await http<{ data: Item[] }>('/api/items')).data;
     } catch (err) {
       console.warn('Backend items fetch failed, using local:', err);
     }
@@ -385,7 +385,7 @@ export async function fetchItemsList(): Promise<Item[]> {
 export async function fetchPurchaseOrdersList(): Promise<(PurchaseOrder & { vendorName?: string })[]> {
   if (!API.mock) {
     try {
-      return await http<(PurchaseOrder & { vendorName?: string })[]>('/api/purchase-orders');
+      return (await http<{ data: (PurchaseOrder & { vendorName?: string })[] }>('/api/purchase-orders')).data;
     } catch (err) {
       console.warn('Backend POs fetch failed, using local:', err);
     }

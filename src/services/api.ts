@@ -1,6 +1,6 @@
 export const API = {
   base: import.meta.env.VITE_API_BASE_URL ?? '',
-  mock: (import.meta.env.VITE_USE_MOCK ?? 'true') === 'true'
+  mock: (import.meta.env.VITE_USE_MOCK ?? 'false') === 'true'
 };
 
 export async function http<T>(path: string, init?: RequestInit): Promise<T> {

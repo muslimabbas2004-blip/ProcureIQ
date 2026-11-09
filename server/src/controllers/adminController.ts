@@ -15,6 +15,7 @@ export const TYPES: Record<string, string[]> = {
 };
 
 export function validateRows(type: string, rows: Record<string, unknown>[]): Issue[] {
+  if (rows.length > 100000) return [{ row: 1, level: 'Error', msg: 'Maximum 100,000 rows per dataset. Split larger imports.' }];
   const req = TYPES[type];
   if (!req) return [{ row: 1, level: 'Error', msg: `Unknown dataset type "${type}".` }];
 
@@ -51,7 +52,7 @@ export function validateRows(type: string, rows: Record<string, unknown>[]): Iss
   return issues;
 }
 
-export function ingestRowsIntoStore(type: string, rows: Record<string, unknown>[]): number {
+export function ingestRowsIntoStore(type: string, rows: Record<string, unknown>[], persist = true): number {
   let count = 0;
 
   if (type === 'Vendors') {
@@ -214,7 +215,8 @@ export function ingestRowsIntoStore(type: string, rows: Record<string, unknown>[
     });
   }
 
-  store.saveToDisk();
+  store.invalidateQueries();
+  if (persist) store.saveToDisk();
   return count;
 }
 
@@ -333,7 +335,7 @@ export const batchUploadDatasets = (req: Request, res: Response) => {
     };
 
     store.datasets.unshift(newDataset);
-    const count = ingestRowsIntoStore(type, rows);
+    const count = ingestRowsIntoStore(type, rows, false);
     totalIngested += count;
 
     results.push({
@@ -344,6 +346,7 @@ export const batchUploadDatasets = (req: Request, res: Response) => {
     });
   }
 
+  if (totalIngested) store.saveToDisk();
   return res.status(201).json({
     success: true,
     totalIngested,
@@ -361,6 +364,13 @@ export const getAdminStats = (_req: Request, res: Response) => {
     datasets: store.datasets.length,
     totalSpend: store.getTotalSpend()
   });
+};
+
+export const removeUntouchedDemoData = (req: Request, res: Response) => {
+  const user = store.users.find(u => u.email === req.cookies?.piq_user && u.role === 'admin' && u.status === 'Active');
+  if (!user) return res.status(403).json({ error: 'Administrator access is required.' });
+  if (!store.removeUntouchedDemoData()) return res.status(409).json({ error: 'The data has been imported or changed, so the sample cannot be safely identified and removed automatically.' });
+  return res.json({ success: true });
 };
 
 export const getDatasets = (_req: Request, res: Response) => {

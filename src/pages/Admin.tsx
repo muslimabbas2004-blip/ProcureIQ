@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import {
   TYPES,
+  listDatasets,
   validate,
   StagedFile,
   parseMultipleFiles,
@@ -36,6 +37,7 @@ import {
   SAMPLE_TEMPLATES
 } from '../services/uploadService';
 import { useAuth } from '../context/Auth';
+import { http } from '../services/api';
 
 export default function Admin() {
   const { user } = useAuth();
@@ -49,6 +51,21 @@ export default function Admin() {
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
+  const [localFiles] = useState(() => listDatasets().filter(d => d.status?.includes('mock')));
+  const [recovered, setRecovered] = useState<string[]>([]);
+  const recoverLocal = async (dataset: Dataset) => {
+    if (dataset.rows.length < dataset.records) {
+      setStatusMessage({ type: 'error', text: dataset.name + ' has only a preview saved in this browser. Re-upload the original file to restore all records.' }); return;
+    }
+    setLoading(true);
+    try {
+      const response = await batchUploadDatasetsApi([{ name: dataset.name, type: dataset.type, rows: dataset.rows, by: user?.email }]);
+      if (!response.totalIngested) throw new Error('No records were imported. Check the file format.');
+      setRecovered(old => [...old, dataset.id]); await refreshData();
+      setStatusMessage({ type: 'success', text: 'Restored ' + response.totalIngested + ' records to the live store.' });
+    } catch (error) { setStatusMessage({ type: 'error', text: 'Restore failed: ' + (error as Error).message }); }
+    finally { setLoading(false); }
+  };
 
   const refreshData = async () => {
     try {
@@ -56,7 +73,7 @@ export default function Admin() {
       setDatasets(ds);
       setStats(st);
     } catch (e) {
-      console.error('Failed to load admin stats:', e);
+      setStatusMessage({ type: 'error', text: 'Unable to load live data: ' + (e as Error).message });
     }
   };
 
@@ -129,11 +146,10 @@ export default function Admin() {
       }));
 
       const res = await batchUploadDatasetsApi(payload);
-      setStatusMessage({
-        type: 'success',
-        text: `Successfully extracted and ingested ${res.totalIngested.toLocaleString()} records across ${validFiles.length} file(s) into the database!`
-      });
-      setStagedFiles([]);
+      const failed = res.results?.filter(r => r.status !== 'Imported') ?? [];
+      setStatusMessage({ type: failed.length ? 'error' : 'success', text: failed.length ? `Imported ${res.totalIngested} records. Some files failed: ${failed.map(f => f.name + ': ' + (f.error || f.status)).join('; ')}` : `Imported ${res.totalIngested.toLocaleString()} records into the live store.` });
+      const failedNames = new Set(failed.map(f => f.name));
+      setStagedFiles(previous => previous.filter(f => !validFiles.includes(f) || failedNames.has(f.name)));
       await refreshData();
     } catch (err) {
       setStatusMessage({ type: 'error', text: 'Import failed: ' + (err as Error).message });
@@ -143,10 +159,12 @@ export default function Admin() {
   };
 
   const handleDeleteDataset = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this dataset from the library?')) {
+    if (window.confirm('Remove this import log entry? Imported records remain in the live catalog and purchase history.')) {
+      try {
       await removeDatasetApi(id);
       await refreshData();
-      setStatusMessage({ type: 'success', text: 'Dataset removed successfully.' });
+      setStatusMessage({ type: 'success', text: 'Import log removed. Imported records remain unchanged.' });
+      } catch (error) { setStatusMessage({ type: 'error', text: 'Could not remove import log: ' + (error as Error).message }); }
     }
   };
 
@@ -162,7 +180,7 @@ export default function Admin() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+    <div className="admin-page max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
         <div>
@@ -192,6 +210,8 @@ export default function Admin() {
         </div>
       </div>
 
+      {localFiles.length > 0 && <section className="card space-y-3" aria-label="Earlier browser-only imports"><h2 className="text-lg font-bold">Earlier browser-only imports</h2><p className="text-sm text-slate-600">These files were saved in this browser while demo mode was on and were not added to the live project. Restore complete records below. For files with only a preview, upload the original file again. Existing live records with the same ID will be updated.</p>{localFiles.map(d => <div key={d.id} className="flex flex-wrap justify-between items-center gap-2 border-t pt-3"><span className="text-sm">{d.name} — {d.rows.length} of {d.records} rows available</span>{d.rows.length >= d.records ? <button className="btn2 text-xs" disabled={loading || recovered.includes(d.id)} onClick={() => recoverLocal(d)}>{recovered.includes(d.id) ? 'Restored' : 'Restore to live store'}</button> : <span className="text-xs text-amber-700">Original file required</span>}</div>)}</section>}
+      <div className="card space-y-3"><h2 className="font-semibold">Remove untouched demo data</h2><p className="text-sm text-slate-600">If the live store still contains only the original demo records, you can clear them before importing your own files. This removes sample items, suppliers, orders, and related sample records. It will refuse to run if the live data has been changed or imported.</p><button type="button" className="btn2 text-sm" disabled={loading} onClick={async () => { if (!window.confirm('Remove all untouched demo items, suppliers, orders, and related sample records? This cannot be undone.')) return; setLoading(true); try { await http('/api/admin/demo-data', { method: 'DELETE' }); await refreshData(); setStatusMessage({ type: 'success', text: 'Untouched demo data removed. You can now import your records.' }); } catch (e) { setStatusMessage({ type: 'error', text: (e as Error).message }); } finally { setLoading(false); } }}>Remove untouched demo data</button></div>
       {/* Database Statistics Ribbon */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="card p-4 flex items-center gap-3 bg-gradient-to-br from-white to-slate-50">

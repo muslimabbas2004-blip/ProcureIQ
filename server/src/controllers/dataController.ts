@@ -1,10 +1,11 @@
+import { sendPage } from './pagination.js';
 import { Request, Response } from 'express';
 import { store } from '../db/store.js';
 
-export const getVendors = (_req: Request, res: Response) => {
-  const vendorSpendMap = store.getVendorSpend();
+export const getVendors = (req: Request, res: Response) => {
+  const vendorSpendMap = new Map(store.getVendorSpend().map(s => [s.id, s]));
   const vendorsWithStats = store.vendors.map(v => {
-    const stat = vendorSpendMap.find(s => s.id === v.vendorId);
+    const stat = vendorSpendMap.get(v.vendorId);
     return {
       ...v,
       totalSpend: stat?.value ?? 0,
@@ -12,7 +13,7 @@ export const getVendors = (_req: Request, res: Response) => {
       share: stat?.share ?? 0
     };
   });
-  return res.json(vendorsWithStats);
+  return sendPage(req, res, vendorsWithStats, ['vendorId','vendorName','status','totalSpend','orderCount','share'], 'vendorId');
 };
 
 export const getVendorById = (req: Request, res: Response) => {
@@ -28,9 +29,9 @@ export const getVendorById = (req: Request, res: Response) => {
   });
 };
 
-export const getItems = (_req: Request, res: Response) => {
+export const getItems = (req: Request, res: Response) => {
   const stats = store.getItemStats(false);
-  return res.json(stats);
+  return sendPage(req, res, stats, ['itemId','itemName','category','unitOfMeasurement','qty','avg','spend','vendors'], 'itemId');
 };
 
 export const getItemById = (req: Request, res: Response) => {
@@ -48,10 +49,10 @@ export const getItemById = (req: Request, res: Response) => {
   });
 };
 
-export const getPurchaseOrders = (_req: Request, res: Response) => {
+export const getPurchaseOrders = (req: Request, res: Response) => {
   const posWithVendor = store.pos.map(p => ({
     ...p,
     vendorName: store.getVendorName(p.vendorId)
   }));
-  return res.json(posWithVendor);
+  return sendPage(req, res, posWithVendor, ['poId','orderDate','vendorName','totalAmount','status'], 'poId');
 };

@@ -485,7 +485,7 @@ export async function fetchDatasets(): Promise<Dataset[]> {
     try {
       return await http<Dataset[]>('/api/admin/datasets');
     } catch (err) {
-      console.warn('Failed to fetch datasets from backend, using local:', err);
+      throw err;
     }
   }
   return listDatasets();
@@ -496,7 +496,7 @@ export async function fetchAdminStats(): Promise<AdminStats> {
     try {
       return await http<AdminStats>('/api/admin/stats');
     } catch (err) {
-      console.warn('Failed to fetch admin stats from backend, estimating locally:', err);
+      throw err;
     }
   }
   const ds = listDatasets();
@@ -547,7 +547,7 @@ export async function uploadDatasetApi(dataset: Dataset, file?: File): Promise<D
         return res.dataset;
       }
     } catch (err) {
-      console.warn('Backend upload failed, persisting to localStorage:', err);
+      throw err;
     }
   }
 
@@ -555,15 +555,15 @@ export async function uploadDatasetApi(dataset: Dataset, file?: File): Promise<D
   return dataset;
 }
 
-export async function batchUploadDatasetsApi(datasets: { name: string; type: string; rows: Row[]; by?: string }[]): Promise<{ success: boolean; totalIngested: number }> {
+export async function batchUploadDatasetsApi(datasets: { name: string; type: string; rows: Row[]; by?: string }[]): Promise<{ success: boolean; totalIngested: number; results?: { name: string; status: string; error?: string }[] }> {
   if (!API.mock) {
     try {
-      return await http<{ success: boolean; totalIngested: number }>('/api/admin/datasets/batch-upload', {
+      return await http<{ success: boolean; totalIngested: number; results?: { name: string; status: string; error?: string }[] }>('/api/admin/datasets/batch-upload', {
         method: 'POST',
         body: JSON.stringify({ datasets })
       });
     } catch (err) {
-      console.warn('Backend batch upload failed, saving locally:', err);
+      throw err;
     }
   }
 
@@ -589,7 +589,7 @@ export async function removeDatasetApi(id: string): Promise<void> {
       await http(`/api/admin/datasets/${id}`, { method: 'DELETE' });
       return;
     } catch (err) {
-      console.warn('Backend delete failed, removing locally:', err);
+      throw err;
     }
   }
   deleteDataset(id);

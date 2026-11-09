@@ -1,8 +1,36 @@
-import{Link}from'react-router-dom';import{kpis,fmt}from'../services/analyticsService';
-const F=[['AI Procurement Assistant','Ask questions in plain language and get tables and charts.'],['Vendor Intelligence','See spend, orders and pricing history per supplier.'],['Price Comparison','Compare the same item across vendors.'],['Purchase Analytics','Monthly, vendor and category spend.'],['Cost Optimization','Estimated savings from historical price gaps.'],['Centralized Procurement Data','One place for vendors, items, POs and quotations.']];
-export default function Landing(){const k=kpis();return<div>
- <nav className="flex justify-between items-center px-8 py-4 bg-navy text-white"><span className="font-display text-xl">PROCUREIQ</span><span className="flex gap-3"><Link to="/login" className="btn2 text-white border-white/40 hover:bg-white/10">Sign In</Link><Link to="/login" className="btn bg-teal text-navy">Get Started</Link></span></nav>
- <section className="px-8 py-20 grid md:grid-cols-2 gap-10 max-w-6xl mx-auto items-center"><div><h1 className="font-display text-5xl leading-tight">Turn Procurement Data Into Smarter Decisions.</h1><p className="mt-5 text-mute">An intelligent procurement platform that transforms purchasing records, vendor information, and pricing history into actionable business intelligence.</p><div className="mt-8 flex gap-3"><Link to="/login" className="btn">Explore Platform</Link><Link to="/login" className="btn2">Sign In</Link></div><p className="mt-3 text-xs text-mute">Intelligence Behind Every Purchase.</p></div>
-  <div className="card grid grid-cols-2 gap-4">{[['Total spend',fmt(k.spend)],['Purchase orders',k.orders],['Active suppliers',k.vendors],['Est. savings',fmt(k.savings)]].map(([a,b])=><div key={a as string}><div className="text-xs text-mute">{a}</div><div className="text-xl font-semibold">{b}</div></div>)}</div></section>
- <section className="px-8 pb-20 max-w-6xl mx-auto grid md:grid-cols-3 gap-4">{F.map(([a,b])=><div key={a} className="card"><h3 className="font-semibold">{a}</h3><p className="text-sm text-mute mt-1">{b}</p></div>)}</section>
- <footer className="bg-navy text-white/70 text-sm p-6 text-center">© 2026 PROCUREIQ · contact@procureiq.example</footer></div>}
+import { Link } from 'react-router-dom';
+import { ArrowRight, Check } from 'lucide-react';
+
+const features = [
+  { title: 'Ask a better question', text: 'Explore procurement data in plain language and get clear, grounded answers.', tag: 'AI ASSISTANT' },
+  { title: 'Know your suppliers', text: 'Bring supplier activity, purchase orders, and spending into one view.', tag: 'SUPPLIER INSIGHTS' },
+  { title: 'Understand every price', text: 'Compare prices across suppliers and spot opportunities in your history.', tag: 'PRICE INTELLIGENCE' },
+  { title: 'See the bigger picture', text: 'Turn purchasing records into trends, categories, and meaningful metrics.', tag: 'SPEND ANALYTICS' },
+];
+function Preview() {
+  return <div className="intelligence-plate" aria-label="Illustration of connected procurement intelligence">
+    <div className="plate-header"><span>PROCUREIQ / INTELLIGENCE MAP</span><span>FIG. 01 — CONNECTED VIEW</span></div>
+    <div className="clarity-map">
+      <p className="clarity-intro">Your procurement, connected</p>
+      <div className="clarity-grid">
+        <div className="clarity-item"><span>01</span><strong>Suppliers</strong><small>Know who you work with</small></div>
+        <div className="clarity-item"><span>02</span><strong>Materials</strong><small>See what you purchase</small></div>
+        <div className="clarity-item"><span>03</span><strong>Purchase orders</strong><small>Follow your activity</small></div>
+        <div className="clarity-item"><span>04</span><strong>Price intelligence</strong><small>Understand your costs</small></div>
+      </div>
+      <div className="clarity-outcome"><span className="clarity-outcome-mark" aria-hidden="true">↗</span><div><strong>One clear picture</strong><p>Turn your records into better decisions.</p></div></div>
+    </div><div className="plate-footer"><span>FROM FRAGMENTS TO FORESIGHT</span><span>PROCUREMENT, IN CONTEXT</span></div>
+  </div>;
+}
+
+export default function Landing() {
+  return <div className="landing-page">
+    <header className="landing-header"><nav className="landing-nav" aria-label="Main navigation"><Link to="/" className="landing-logo"><span className="landing-logo-mark">P</span><span>procure<span>iq</span><small>PROCUREMENT INTELLIGENCE</small></span></Link><div className="landing-nav-links"><a href="#features">Why ProcureIQ</a><a href="#how-it-works">How it works</a></div><Link to="/login" className="landing-nav-cta">Sign in <ArrowRight size={15}/></Link></nav></header>
+    <main>
+      <section className="landing-hero"><div className="landing-orb landing-orb-one"/><div className="landing-orb landing-orb-two"/><div className="landing-hero-inner"><div className="landing-copy"><div className="landing-kicker"><span/><span>MEET YOUR PROCUREMENT WORKSPACE</span></div><h1>Better decisions<br/><em>start here.</em></h1><p>Your purchasing data has a story to tell. Bring suppliers, spend, and pricing together to see what matters and act with confidence.</p><div className="landing-actions"><Link to="/login" className="landing-primary">Explore the workspace <ArrowRight size={18}/></Link><a href="#features" className="landing-secondary">See what’s possible <span>↓</span></a></div><div className="landing-note"><span><Check size={14}/></span> One clear view of your procurement data</div></div><Preview/></div></section>
+      <section className="landing-features" id="features"><div className="landing-section-heading"><div><span className="landing-label">MADE FOR BETTER DECISIONS</span><h2>Everything you need.<br/><em>Nothing in your way.</em></h2></div><p>From the first question to your next decision, find the context you need without digging through spreadsheets.</p></div><div className="feature-index">{features.map(({title,text,tag},i)=><article className="feature-row" key={title}><div className="feature-number">0{i+1}<span> / 04</span></div><div className="feature-name"><span>{tag}</span><h3>{title}</h3></div><p>{text}</p><span className="feature-rule" aria-hidden="true" /></article>)}</div></section>
+      <section className="landing-how" id="how-it-works"><div><span className="landing-label">SIMPLE BY DESIGN</span><h2>From data to direction.</h2><p>Start with the records you already have and find answers that move your work forward.</p></div><div className="landing-steps"><div><span>01</span><strong>Bring your data together</strong><p>Import supplier, item, and purchasing records.</p></div><div><span>02</span><strong>Explore what matters</strong><p>Browse trends, compare prices, or ask a question.</p></div><div><span>03</span><strong>Make your next move</strong><p>Use the context to make informed decisions.</p></div></div></section>
+      <section className="landing-bottom"><div><span className="landing-label">READY WHEN YOU ARE</span><h2>Let’s make every purchase<br/>a little smarter.</h2><p>Your procurement workspace is just a click away.</p></div><Link to="/login" className="landing-primary">Get started <ArrowRight size={18}/></Link></section>
+    </main><footer className="landing-footer"><Link to="/" className="landing-footer-logo">procure<span>iq</span>.</Link><p>Clarity for every purchasing decision.</p><span>© {new Date().getFullYear()} ProcureIQ</span></footer>
+  </div>;
+}

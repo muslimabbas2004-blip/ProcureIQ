@@ -1,26 +1,44 @@
 import { useState, useEffect, ReactNode } from 'react';
 import Papa from 'papaparse';
 import { Search, Download, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
-import { pos } from '../data/mock';
-import * as A from '../services/analyticsService';
-import { fmt, vName, fetchPurchaseOrdersList, fetchItemsList } from '../services/analyticsService';
+import { http } from '../services/api';
+import { fmt } from '../services/analyticsService';
 
 type Row = Record<string, string | number>;
 
-export function T({ rows, title, children }: { rows: Row[]; title: string; children?: ReactNode }) {
+type Remote = { endpoint: string; fields: Record<string, string>; map: (row: any) => Row };
+export function T({ rows, title, children, remote }: { rows: Row[]; title: string; children?: ReactNode; remote?: Remote }) {
   const [q, setQ] = useState('');
   const [sk, setSk] = useState('');
   const [asc, setAsc] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const cols = rows[0] ? Object.keys(rows[0]) : [];
+  const [remoteRows, setRemoteRows] = useState<Row[]>([]);
+  const [remoteTotal, setRemoteTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (!remote) return;
+    const controller = new AbortController();
+    setLoading(true); setError('');
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), q, direction: asc ? 'asc' : 'desc' });
+      if (sk) params.set('sort', remote.fields[sk]);
+      http<{ data: any[]; total: number; page: number }>(remote.endpoint + '?' + params, { signal: controller.signal })
+        .then(result => { setRemoteRows(result.data.map(remote.map)); setRemoteTotal(result.total); setPage(result.page); })
+        .catch(err => { if (!controller.signal.aborted) { setError(err.message); setRemoteRows([]); setRemoteTotal(0); } })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    }, 250);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [remote, page, pageSize, q, sk, asc]);
+  const cols = remote ? Object.keys(remote.fields) : rows[0] ? Object.keys(rows[0]) : [];
 
   const query = q.trim().toLowerCase();
   let r = query
     ? rows.filter(x => Object.values(x).some(val => String(val ?? '').toLowerCase().includes(query)))
     : rows;
 
-  if (sk) {
+  if (sk && !remote) {
     r = [...r].sort((a, b) => {
       const va = a[sk];
       const vb = b[sk];
@@ -37,10 +55,12 @@ export function T({ rows, title, children }: { rows: Row[]; title: string; child
     setPage(1);
   }, [q, sk, asc]);
 
-  const totalPages = Math.max(1, Math.ceil(r.length / pageSize));
+  if (remote) r = remoteRows;
+  const totalCount = remote ? remoteTotal : r.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const currentPage = Math.min(page, totalPages);
   const startIdx = (currentPage - 1) * pageSize;
-  const pagedRows = r.slice(startIdx, startIdx + pageSize);
+  const pagedRows = remote ? r : r.slice(startIdx, startIdx + pageSize);
 
   const exp = () => {
     const u = URL.createObjectURL(new Blob([Papa.unparse(r)], { type: 'text/csv' }));
@@ -58,32 +78,35 @@ export function T({ rows, title, children }: { rows: Row[]; title: string; child
           <div className="flex items-center gap-2">
             <h1 className="font-display text-2xl font-bold text-slate-900">{title}</h1>
             <span className="badge bg-slate-100 text-slate-700 font-semibold">
-              {r.length.toLocaleString()} record{r.length === 1 ? '' : 's'}
+              {totalCount.toLocaleString()} record{totalCount === 1 ? '' : 's'}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Real-time procurement records. Sort columns or search any attribute.
+            Search the records or select a column heading to sort.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <div className="relative">
+        <div className="table-controls flex items-center gap-2.5">
+          <div className="relative min-w-0">
             <Search size={14} className="absolute left-3 top-3 text-slate-400" />
             <input
               className="border rounded-lg pl-8 pr-3 py-2 text-xs border-slate-200 focus:outline-none focus:border-royal w-48 sm:w-60"
               placeholder="Search in table…"
+              aria-label={`Search ${title}`}
               value={q}
-              onChange={e => setQ(e.target.value)}
+              onChange={e => { setQ(e.target.value); setPage(1); }}
             />
           </div>
-          <button className="btn2 text-xs" onClick={exp}>
+          <button className="btn2 text-xs" onClick={exp} disabled={loading || !!error || !r.length}>
             <Download size={14} />
-            Export CSV
+            {remote ? 'Export this page' : 'Export CSV'}
           </button>
         </div>
       </div>
 
       {children}
+      {loading && <p role="status">Loading records…</p>}
+      {error && <p role="alert" className="text-red-700">Could not load records: {error}</p>}
 
       <div className="card overflow-x-auto p-0 border border-slate-200/80 shadow-sm">
         <table className="w-full">
@@ -94,6 +117,7 @@ export function T({ rows, title, children }: { rows: Row[]; title: string; child
                   <button
                     className="flex items-center gap-1.5 hover:text-slate-900 font-semibold"
                     onClick={() => {
+                      setPage(1);
                       setSk(c);
                       setAsc(sk === c ? !asc : true);
                     }}
@@ -119,10 +143,10 @@ export function T({ rows, title, children }: { rows: Row[]; title: string; child
                 ))}
               </tr>
             ))}
-            {!r.length && (
+            {!r.length && !loading && !error && (
               <tr>
                 <td colSpan={cols.length || 1} className="py-12 text-center text-slate-400 text-sm">
-                  No matching procurement records found.
+                  {q ? 'No matching records. Try a different search.' : 'No records available yet.'}
                 </td>
               </tr>
             )}
@@ -131,15 +155,15 @@ export function T({ rows, title, children }: { rows: Row[]; title: string; child
       </div>
 
       {/* Pagination Bar */}
-      {r.length > 0 && (
+      {totalCount > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white px-5 py-3.5 rounded-xl border border-slate-200/80 shadow-sm text-xs text-slate-600">
           <div className="flex items-center gap-2 flex-wrap">
             <span>
               Showing <span className="font-semibold text-slate-800">{(startIdx + 1).toLocaleString()}</span> to{' '}
               <span className="font-semibold text-slate-800">
-                {Math.min(startIdx + pageSize, r.length).toLocaleString()}
+                {Math.min(startIdx + pageSize, totalCount).toLocaleString()}
               </span>{' '}
-              of <span className="font-semibold text-slate-800">{r.length.toLocaleString()}</span> entries
+              of <span className="font-semibold text-slate-800">{totalCount.toLocaleString()}</span> entries
             </span>
             <span className="text-slate-300">|</span>
             <label className="flex items-center gap-1.5 text-slate-500">
@@ -200,104 +224,25 @@ export function T({ rows, title, children }: { rows: Row[]; title: string; child
   );
 }
 
-export const ItemsPage = () => {
-  const [items, setItems] = useState<Row[]>(() =>
-    A.itemStats().map(i => ({
-      ID: i.itemId,
-      Item: i.itemName,
-      Category: i.category,
-      Unit: i.unitOfMeasurement,
-      Qty: i.qty ? i.qty.toLocaleString() : '0',
-      'Avg Price': i.avg ? fmt(i.avg) : '—',
-      Spend: i.spend ? fmt(i.spend) : '—',
-      Vendors: i.vendors || 0
-    }))
-  );
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchItemsList()
-      .then(itemList => {
-        if (itemList && itemList.length > 0) {
-          setItems(
-            itemList.map(i => {
-              const anyItem = i as any;
-              const q = Number(anyItem.qty || 0);
-              const avg = Number(anyItem.avg || 0);
-              const spend = Number(anyItem.spend || 0);
-              const v = Number(anyItem.vendors || 0);
-
-              return {
-                ID: anyItem.itemId || '',
-                Item: anyItem.itemName || '',
-                Category: anyItem.category || 'General Supplies',
-                Unit: anyItem.unitOfMeasurement || anyItem.unit || 'unit',
-                Qty: q > 0 ? q.toLocaleString() : '0',
-                'Avg Price': avg > 0 ? fmt(avg) : '—',
-                Spend: spend > 0 ? fmt(spend) : '—',
-                Vendors: v
-              };
-            })
-          );
-        }
-      })
-      .catch(err => {
-        console.error('Failed to load items list:', err);
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  return (
-    <T title="Items & Materials Catalog" rows={items}>
-      {loading && (
-        <div className="flex items-center gap-2 text-xs text-slate-500 py-1">
-          <span className="w-2 h-2 rounded-full bg-teal animate-ping" />
-          Synchronizing items catalog...
-        </div>
-      )}
-    </T>
-  );
+const itemRemote: Remote = {
+  endpoint: '/api/items',
+  fields: { ID: 'itemId', Item: 'itemName', Category: 'category', Unit: 'unitOfMeasurement', Qty: 'qty', 'Avg Price': 'avg', Spend: 'spend', Vendors: 'vendors' },
+  map: i => ({ ID: i.itemId, Item: i.itemName, Category: i.category, Unit: i.unitOfMeasurement, Qty: i.qty, 'Avg Price': fmt(i.avg), Spend: fmt(i.spend), Vendors: i.vendors })
 };
-
-export const POPage = () => {
-  const [orders, setOrders] = useState<Row[]>(() =>
-    pos.map(p => ({
-      PO: p.poId,
-      Date: p.orderDate,
-      Vendor: vName(p.vendorId),
-      Total: fmt(p.totalAmount),
-      Status: p.status
-    }))
-  );
-
-  useEffect(() => {
-    fetchPurchaseOrdersList().then(poList => {
-      setOrders(
-        poList.map(p => ({
-          PO: p.poId,
-          Date: p.orderDate,
-          Vendor: p.vendorName || vName(p.vendorId),
-          Total: fmt(p.totalAmount),
-          Status: p.status
-        }))
-      );
-    });
-  }, []);
-
-  return <T title="Purchase Orders Register" rows={orders} />;
+const orderRemote: Remote = {
+  endpoint: '/api/purchase-orders',
+  fields: { PO: 'poId', Date: 'orderDate', Vendor: 'vendorName', Total: 'totalAmount', Status: 'status' },
+  map: p => ({ PO: p.poId, Date: p.orderDate, Vendor: p.vendorName, Total: fmt(p.totalAmount), Status: p.status })
 };
+export const ItemsPage = () => <T title="Items & Materials Catalog" rows={[]} remote={itemRemote} />;
+export const POPage = () => <T title="Purchase Orders Register" rows={[]} remote={orderRemote} />;
 
-export const ReportsPage = () => (
-  <T
-    title="Supplier Spend & Volume Reports"
-    rows={A.vendorSpend().map(v => ({
-      Vendor: v.name,
-      'Total Spend': fmt(v.value),
-      'Order Count': v.orders,
-      'Spend Share': v.share.toFixed(1) + '%'
-    }))}
-  />
-);
+const vendorRemote: Remote = {
+  endpoint: '/api/vendors',
+  fields: { Vendor: 'vendorName', 'Total Spend': 'totalSpend', 'Order Count': 'orderCount', 'Spend Share': 'share' },
+  map: v => ({ Vendor: v.vendorName, 'Total Spend': fmt(v.totalSpend), 'Order Count': v.orderCount, 'Spend Share': v.share.toFixed(1) + '%' })
+};
+export const ReportsPage = () => <T title="Supplier Spend & Volume Reports" rows={[]} remote={vendorRemote} />;
 
 const BC: Record<string, string> = {
   Received: 'bg-emerald-50 text-emerald-700 border border-emerald-200',

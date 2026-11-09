@@ -65,6 +65,10 @@ export interface HistoricalPurchase {
 }
 
 export interface AiAnswer {
+  tables?: { title: string; head: string[]; rows: (string | number)[][] }[];
+  mode?: 'ai' | 'local';
+  warnings?: string[];
+  plan?: import('../services/localPlanner.js').Plan;
   text: string;
   table?: {
     head: string[];

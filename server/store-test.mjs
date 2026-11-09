@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const modulePath = pathToFileURL(path.resolve('server/dist/db/store.js')).href;
+const adminPath = pathToFileURL(path.resolve('server/dist/controllers/adminController.js')).href;
+const enginePath = pathToFileURL(path.resolve('server/dist/services/queryEngine.js')).href;
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'procureiq-store-test-'));
+process.chdir(scratch);
+try {
+  const { store, DataStore } = await import(modulePath);
+  const before = store.items.length;
+  assert.ok(before > 0);
+  store.items.push({ itemId: 'TEST-USER', itemName: 'User item', category: 'Test', description: 'Test', unitOfMeasurement: 'unit', currency: 'PKR' });
+  assert.equal(store.removeUntouchedDemoData(), false);
+  assert.equal(store.items.length, before + 1);
+  store.items.pop();
+  assert.equal(store.removeUntouchedDemoData(), true);
+  assert.equal(store.items.length, 0);
+  const reloaded = new DataStore();
+  assert.equal(reloaded.items.length, 0, 'empty catalog must remain empty on restart');
+  assert.equal(reloaded.pos.length, 0);
+  const { ingestRowsIntoStore, deleteDataset } = await import(adminPath);
+  const { executeQuery } = await import(enginePath);
+  assert.equal(ingestRowsIntoStore('Item Master', [{ itemId: 'CUSTOM-1', itemName: 'Custom material', category: 'Test' }]), 1);
+  assert.equal(store.getItemStats()[0].itemName, 'Custom material');
+  assert.equal(executeQuery(store, { dataset: 'items', filters: [{ field: 'itemId', op: 'eq', value: 'CUSTOM-1' }] }).rows[0].itemName, 'Custom material');
+  assert.equal(new DataStore().items[0].itemId, 'CUSTOM-1');
+  store.datasets.push({ id: 'log', name: 'test', type: 'Item Master', date: '2026-01-01', by: 'test', records: 1, status: 'Imported', rows: [] });
+  let status = 200; const response = { status(n) { status = n; return this; }, json() { return this; } };
+  deleteDataset({ params: { id: 'log' } }, response);
+  assert.equal(status, 200); assert.equal(store.items[0].itemId, 'CUSTOM-1');
+  assert.equal(store.removeUntouchedDemoData(), false);
+  console.log('Demo guard, empty restart, live import, assistant queries and import-log deletion passed in isolated temporary directory.');
+} finally { process.chdir(os.tmpdir()); fs.rmSync(scratch, {recursive:true, force:true}); }

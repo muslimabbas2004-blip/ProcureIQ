@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "test:scale": "npm run build && node scale-test.mjs",
+    "test:assistant": "npm run build && node assistant-test.mjs"
   },
   "dependencies": {
     "cookie-parser": "^1.4.6",

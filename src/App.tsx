@@ -1,4 +1,5 @@
-import { Routes, Route, NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
+import { Routes, Route, NavLink, Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Sparkles,
@@ -11,7 +12,9 @@ import {
   ShieldCheck,
   LogOut,
   User as UserIcon,
-  Search
+  Search,
+  Menu,
+  X
 } from 'lucide-react';
 import { Guard, useAuth } from './context/Auth';
 import Landing from './pages/Landing';
@@ -25,7 +28,7 @@ import { Vendors, PricePage, AnalyticsPage } from './pages/Compare';
 const nav = [
   ['/app', 'Overview', LayoutDashboard],
   ['/app/assistant', 'AI Assistant', Sparkles],
-  ['/app/vendors', 'Vendors Master', Building2],
+  ['/app/vendors', 'Suppliers', Building2],
   ['/app/items', 'Items & Materials', Package],
   ['/app/purchase-orders', 'Purchase Orders', FileText],
   ['/app/pricing', 'Price Intelligence', TrendingUp],
@@ -36,6 +39,9 @@ const nav = [
 function Shell() {
   const { user, signOut } = useAuth();
   const go = useNavigate();
+  const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
 
   const initials = user?.name
     ? user.name
@@ -47,9 +53,15 @@ function Shell() {
     : 'U';
 
   return (
-    <div className="min-h-screen md:flex bg-slate-50">
+    <div className="app-shell min-h-screen md:flex bg-slate-50">
+      <div className="mobile-app-bar md:hidden">
+        <Link to="/app" className="mobile-app-brand">PROCUREIQ<span>.</span></Link>
+        <button type="button" className="mobile-menu-toggle" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={menuOpen} aria-controls="app-navigation" onClick={() => setMenuOpen(open => !open)}>
+          {menuOpen ? <X size={21} /> : <Menu size={21} />}
+        </button>
+      </div>
       {/* Sidebar */}
-      <aside className="bg-navy text-white md:w-64 md:min-h-screen p-5 flex md:flex-col gap-1 overflow-x-auto border-r border-slate-800 flex-shrink-0">
+      <aside id="app-navigation" aria-label="Main navigation" className={`${menuOpen ? 'flex' : 'hidden'} bg-navy text-white md:w-64 md:min-h-screen p-3 md:p-5 md:flex flex-col gap-1 border-r border-slate-800 flex-shrink-0`}>
         <div className="hidden md:flex items-center gap-3 mb-8 px-2">
           <div className="w-8 h-8 rounded-lg bg-teal flex items-center justify-center font-bold text-navy text-sm shadow-sm">
             PQ
@@ -64,7 +76,7 @@ function Shell() {
           </div>
         </div>
 
-        <nav className="flex md:flex-col gap-1 w-full flex-1">
+        <nav aria-label="Procurement sections" className="flex flex-col gap-1 w-full flex-1">
           {nav.map(([to, l, Icon]) => (
             <NavLink
               key={to}
@@ -116,7 +128,7 @@ function Shell() {
         {/* Top Header */}
         <header className="flex justify-between items-center px-6 py-3.5 bg-white border-b border-slate-200/80 sticky top-0 z-10 shadow-sm/50">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-medium text-slate-400 hidden sm:inline-block">
+            <span className="text-xs font-medium text-slate-500 hidden sm:inline-block">
               {new Date().toLocaleDateString(undefined, {
                 weekday: 'long',
                 year: 'numeric',
@@ -131,7 +143,7 @@ function Shell() {
               <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-700">
                 {initials}
               </div>
-              <div className="hidden sm:block text-left">
+              <div className="text-left">
                 <div className="text-xs font-semibold text-slate-800 leading-tight">
                   {user?.name}
                 </div>
@@ -150,14 +162,14 @@ function Shell() {
               title="Sign out of ProcureIQ"
             >
               <LogOut size={13} />
-              <span className="hidden sm:inline">Sign out</span>
+              <span>Sign out</span>
             </button>
           </div>
         </header>
 
         {/* Page Content */}
         <main className="p-4 sm:p-6 lg:p-8 flex-1">
-          <Outlet />
+          <div key={location.pathname} className="page-enter"><Outlet /></div>
         </main>
       </div>
     </div>

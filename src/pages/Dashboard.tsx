@@ -34,12 +34,14 @@ import { fetchDashboardOverview, DashboardOverviewData, fmt } from '../services/
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardOverviewData | null>(null);
+  const [error, setError] = useState('');
   const [chartView, setChartView] = useState<'bar' | 'area'>('area');
 
   useEffect(() => {
-    fetchDashboardOverview().then(setData);
+    fetchDashboardOverview().then(setData).catch(() => setError('Unable to load live dashboard data. Check the server connection and refresh.'));
   }, []);
 
+  if (error) return <div role="alert" className="card text-rose-700">{error}</div>;
   if (!data) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -134,8 +136,7 @@ export default function Dashboard() {
           </div>
           <div className="text-2xl font-bold text-slate-900 mt-2">{k.orders}</div>
           <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-500">
-            <span className="text-emerald-600 font-semibold">Active & Delivered</span>
-            <span>across fiscal year</span>
+            <span>Excludes draft and cancelled orders</span>
           </div>
         </div>
 
@@ -151,8 +152,7 @@ export default function Dashboard() {
           </div>
           <div className="text-2xl font-bold text-slate-900 mt-2">{k.vendors}</div>
           <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-500">
-            <span className="text-teal font-semibold">100% Verified</span>
-            <span>in commercial database</span>
+            <span>Suppliers marked active</span>
           </div>
         </div>
 

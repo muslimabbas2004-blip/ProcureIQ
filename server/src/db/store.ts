@@ -87,7 +87,29 @@ const rawItems: [string, string, string, number][] = [
   ['Wooden Crate', 'Packaging Materials', 'pc', 2400]
 ];
 
-class DataStore {
+export class DataStore {
+  private queryCache = new Map<string, unknown>();
+  invalidateQueries() { this.queryCache.clear(); }
+  private cached<T>(key: string, build: () => T): T {
+    if (!this.queryCache.has(key)) this.queryCache.set(key, build());
+    return this.queryCache.get(key) as T;
+  }
+  private indexes() {
+    return this.cached('indexes', () => {
+      const orders = new Map(this.pos.map(p => [p.poId, p]));
+      const vendors = new Map(this.vendors.map(v => [v.vendorId, v]));
+      const items = new Map(this.items.map(i => [i.itemId, i]));
+      const live = this.pos.filter(p => p.status !== 'Cancelled' && p.status !== 'Draft');
+      const ids = new Set(live.map(p => p.poId));
+      const lines = this.lines.filter(l => ids.has(l.poId));
+      const byItem = new Map<string, PurchaseOrderLine[]>();
+      for (const line of lines) {
+        const group = byItem.get(line.itemId) ?? [];
+        group.push(line); byItem.set(line.itemId, group);
+      }
+      return { orders, vendors, items, live, lines, byItem };
+    });
+  }
   users: User[] = [
     {
       email: 'procurement@demo.com',
@@ -117,11 +139,27 @@ class DataStore {
   quotations: Quotation[] = [];
   datasets: Dataset[] = [];
 
-  constructor() {
+  constructor(initialize = true) {
+    if (!initialize) return;
     if (!this.loadFromDisk()) {
       this.initData();
     }
-    this.checkAutoSeed();
+
+  }
+
+  // Only remove the original complete sample when every record is unchanged.
+  // Imported or edited data makes this operation unavailable.
+  removeUntouchedDemoData(): boolean {
+    const oldSeed = seed;
+    const sample = new DataStore(false);
+    try { seed = 42; sample.initData(); } finally { seed = oldSeed; }
+    const collections = ['items', 'vendors', 'pos', 'lines', 'historical', 'quotations'] as const;
+    if (collections.some(key => JSON.stringify(this[key]) !== JSON.stringify(sample[key]))) return false;
+    if (this.datasets.some(d => d.id !== 'ds-seed-01')) return false;
+    this.items = []; this.vendors = []; this.pos = []; this.lines = [];
+    this.historical = []; this.quotations = []; this.datasets = [];
+    this.saveToDisk();
+    return true;
   }
 
   private getStoragePath(): string {
@@ -137,6 +175,7 @@ class DataStore {
   }
 
   saveToDisk() {
+    this.invalidateQueries();
     try {
       const p = this.getStoragePath();
       const payload = {
@@ -149,9 +188,11 @@ class DataStore {
         quotations: this.quotations,
         datasets: this.datasets
       };
-      fs.writeFileSync(p, JSON.stringify(payload), 'utf8');
+      const temporary = p + '.tmp';
+      fs.writeFileSync(temporary, JSON.stringify(payload), 'utf8');
+      fs.renameSync(temporary, p);
     } catch (e) {
-      console.warn('Failed to save store to disk:', e);
+      throw new Error('Failed to persist data', { cause: e });
     }
   }
 
@@ -161,7 +202,7 @@ class DataStore {
       if (fs.existsSync(p)) {
         const raw = fs.readFileSync(p, 'utf8');
         const data = JSON.parse(raw);
-        if (data && Array.isArray(data.items) && data.items.length > 0) {
+        if (data && Array.isArray(data.items)) {
           this.users = data.users || this.users;
           this.vendors = data.vendors || [];
           this.items = data.items || [];
@@ -365,20 +406,19 @@ class DataStore {
   // --- Helper Query Methods ---
 
   getLivePOs() {
-    return this.pos.filter(p => p.status !== 'Cancelled' && p.status !== 'Draft');
+    return this.indexes().live;
   }
 
   getLiveLines() {
-    const livePoIds = new Set(this.getLivePOs().map(p => p.poId));
-    return this.lines.filter(l => livePoIds.has(l.poId));
+    return this.indexes().lines;
   }
 
   getPOById(id: string) {
-    return this.pos.find(p => p.poId === id);
+    return this.indexes().orders.get(id);
   }
 
   getVendorName(vendorId: string) {
-    return this.vendors.find(v => v.vendorId === vendorId)?.vendorName ?? vendorId;
+    return this.indexes().vendors.get(vendorId)?.vendorName ?? vendorId;
   }
 
   getTotalSpend() {
@@ -416,6 +456,7 @@ class DataStore {
   }
 
   getItemStats(onlyWithLines = false) {
+    return [...this.cached("getItemStats:" + String(onlyWithLines), () => {
     const liveLines = this.getLiveLines();
     const statsMap = new Map<
       string,
@@ -451,18 +492,20 @@ class DataStore {
         qty,
         spend,
         avg: qty ? spend / qty : 0,
-        min: prices.length ? Math.min(...prices) : 0,
-        max: prices.length ? Math.max(...prices) : 0,
+        min: prices.length ? prices.reduce((a, b) => Math.min(a, b), Infinity) : 0,
+        max: prices.length ? prices.reduce((a, b) => Math.max(a, b), -Infinity) : 0,
         vendors: vendorCount,
         lines
       };
     });
 
     return onlyWithLines ? result.filter(i => i.lines > 0) : result;
+
+    })];
   }
 
   getItemByVendor(itemId: string) {
-    const liveLines = this.getLiveLines().filter(l => l.itemId === itemId);
+    const liveLines = (this.indexes().byItem.get(itemId) ?? []);
     const map: Record<string, number[]> = {};
 
     liveLines.forEach(l => {
@@ -476,14 +519,14 @@ class DataStore {
       id,
       name: this.getVendorName(id),
       avg: prices.reduce((a, b) => a + b, 0) / prices.length,
-      min: Math.min(...prices),
-      max: Math.max(...prices),
+      min: prices.reduce((a, b) => Math.min(a, b), Infinity),
+      max: prices.reduce((a, b) => Math.max(a, b), -Infinity),
       n: prices.length
     }));
   }
 
   getItemTrend(itemId: string) {
-    const liveLines = this.getLiveLines().filter(l => l.itemId === itemId);
+    const liveLines = (this.indexes().byItem.get(itemId) ?? []);
     const map: Record<string, number[]> = {};
 
     liveLines.forEach(l => {
@@ -503,6 +546,7 @@ class DataStore {
   }
 
   getSavings() {
+    return [...this.cached("getSavings:" + "all", () => {
     const liveLines = this.getLiveLines();
     return this.getItemStats(true)
       .map(item => {
@@ -512,7 +556,7 @@ class DataStore {
         if (vendorPrices.length < 2) return null;
 
         const best = vendorPrices[0];
-        const itemLines = liveLines.filter(l => l.itemId === item.itemId);
+        const itemLines = (this.indexes().byItem.get(item.itemId) ?? []);
         const est = itemLines.reduce(
           (acc, l) => acc + Math.max(0, l.unitPrice - best.avg) * l.quantity,
           0
@@ -532,9 +576,12 @@ class DataStore {
       bestAvg: number;
       est: number;
     }[];
+
+    })];
   }
 
   getPriceChanges() {
+    return [...this.cached("getPriceChanges:" + "all", () => {
     return this.getItemStats(true)
       .map(item => {
         const trend = this.getItemTrend(item.itemId);
@@ -548,6 +595,8 @@ class DataStore {
       })
       .filter(Boolean)
       .sort((a, b) => b!.pct - a!.pct) as { item: string; pct: number }[];
+
+    })];
   }
 
   getKPIs() {
@@ -565,7 +614,7 @@ class DataStore {
     const liveLines = this.getLiveLines();
     const map: Record<string, number> = {};
     liveLines.forEach(l => {
-      const item = this.items.find(i => i.itemId === l.itemId);
+      const item = this.indexes().items.get(l.itemId);
       if (item) {
         map[item.category] = (map[item.category] ?? 0) + l.lineTotal;
       }
