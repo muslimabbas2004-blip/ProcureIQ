@@ -1,5 +1,8 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Check } from 'lucide-react';
+import Brand from '../components/Brand';
+import ProcurementNetwork from './ProcurementNetwork';
+import { LandingSpotlight, ProcurementTrace } from './LandingSignals';
 
 const features = [
   { title: 'Ask a better question', text: 'Explore procurement data in plain language and get clear, grounded answers.', tag: 'AI ASSISTANT' },
@@ -25,12 +28,40 @@ function Preview() {
 
 export default function Landing() {
   return <div className="landing-page">
-    <header className="landing-header"><nav className="landing-nav" aria-label="Main navigation"><Link to="/" className="landing-logo"><span className="landing-logo-mark">P</span><span>procure<span>iq</span><small>PROCUREMENT INTELLIGENCE</small></span></Link><div className="landing-nav-links"><a href="#features">Why ProcureIQ</a><a href="#how-it-works">How it works</a></div><Link to="/login" className="landing-nav-cta">Sign in <ArrowRight size={15}/></Link></nav></header>
-    <main>
-      <section className="landing-hero"><div className="landing-orb landing-orb-one"/><div className="landing-orb landing-orb-two"/><div className="landing-hero-inner"><div className="landing-copy"><div className="landing-kicker"><span/><span>MEET YOUR PROCUREMENT WORKSPACE</span></div><h1>Better decisions<br/><em>start here.</em></h1><p>Your purchasing data has a story to tell. Bring suppliers, spend, and pricing together to see what matters and act with confidence.</p><div className="landing-actions"><Link to="/login" className="landing-primary">Explore the workspace <ArrowRight size={18}/></Link><a href="#features" className="landing-secondary">See what’s possible <span>↓</span></a></div><div className="landing-note"><span><Check size={14}/></span> One clear view of your procurement data</div></div><Preview/></div></section>
-      <section className="landing-features" id="features"><div className="landing-section-heading"><div><span className="landing-label">MADE FOR BETTER DECISIONS</span><h2>Everything you need.<br/><em>Nothing in your way.</em></h2></div><p>From the first question to your next decision, find the context you need without digging through spreadsheets.</p></div><div className="feature-index">{features.map(({title,text,tag},i)=><article className="feature-row" key={title}><div className="feature-number">0{i+1}<span> / 04</span></div><div className="feature-name"><span>{tag}</span><h3>{title}</h3></div><p>{text}</p><span className="feature-rule" aria-hidden="true" /></article>)}</div></section>
-      <section className="landing-how" id="how-it-works"><div><span className="landing-label">SIMPLE BY DESIGN</span><h2>From data to direction.</h2><p>Start with the records you already have and find answers that move your work forward.</p></div><div className="landing-steps"><div><span>01</span><strong>Bring your data together</strong><p>Import supplier, item, and purchasing records.</p></div><div><span>02</span><strong>Explore what matters</strong><p>Browse trends, compare prices, or ask a question.</p></div><div><span>03</span><strong>Make your next move</strong><p>Use the context to make informed decisions.</p></div></div></section>
+    <header className="landing-header">
+      <nav className="landing-nav" aria-label="Main navigation">
+        <Brand tagline />
+        <div className="landing-nav-links"><a href="#features">Why ProcureIQ</a><a href="#how-it-works">How it works</a></div>
+        <Link to="/login" className="landing-nav-cta">Sign in <ArrowRight size={15} /></Link>
+      </nav>
+    </header>
+    <main className="landing-scene">
+      <LandingSpotlight />
+      <section className="landing-hero">
+        <ProcurementNetwork />
+        <div className="landing-hero-inner">
+          <div className="landing-copy">
+            <div className="landing-kicker"><span /><span>MEET YOUR PROCUREMENT WORKSPACE</span></div>
+            <h1>Better decisions<br /><em>start here.</em></h1>
+            <p>Your purchasing data has a story to tell. Bring suppliers, spend, and pricing together to see what matters and act with confidence.</p>
+            <div className="landing-actions">
+              <Link to="/login" className="landing-primary">Explore the workspace <ArrowRight size={18} /></Link>
+              <a href="#features" className="landing-secondary">See what’s possible <span>↓</span></a>
+            </div>
+            <div className="landing-note"><span><Check size={14} /></span> One clear view of your procurement data</div>
+          </div>
+          <Preview />
+        </div>
+      </section>
+      <section className="landing-features" id="features">
+        <ProcurementTrace />
+        <div className="landing-section-heading"><div><span className="landing-label">MADE FOR BETTER DECISIONS</span><h2>Everything you need.<br/><em>Nothing in your way.</em></h2></div><p>From the first question to your next decision, find the context you need without digging through spreadsheets.</p></div><div className="feature-index">{features.map(({title,text,tag},i)=><article className="feature-row" key={title}><div className="feature-number">0{i+1}<span> / 04</span></div><div className="feature-name"><span>{tag}</span><h3>{title}</h3></div><p>{text}</p><span className="feature-rule" aria-hidden="true" /></article>)}</div>
+      </section>
+      <section className="landing-how" id="how-it-works">
+        <ProcurementTrace workflow />
+        <div><span className="landing-label">SIMPLE BY DESIGN</span><h2>From data to direction.</h2><p>Start with the records you already have and find answers that move your work forward.</p></div><div className="landing-steps"><div><span>01</span><strong>Bring your data together</strong><p>Import supplier, item, and purchasing records.</p></div><div><span>02</span><strong>Explore what matters</strong><p>Browse trends, compare prices, or ask a question.</p></div><div><span>03</span><strong>Make your next move</strong><p>Use the context to make informed decisions.</p></div></div>
+      </section>
       <section className="landing-bottom"><div><span className="landing-label">READY WHEN YOU ARE</span><h2>Let’s make every purchase<br/>a little smarter.</h2><p>Your procurement workspace is just a click away.</p></div><Link to="/login" className="landing-primary">Get started <ArrowRight size={18}/></Link></section>
-    </main><footer className="landing-footer"><Link to="/" className="landing-footer-logo">procure<span>iq</span>.</Link><p>Clarity for every purchasing decision.</p><span>© {new Date().getFullYear()} ProcureIQ</span></footer>
+    </main><footer className="landing-footer"><Brand /><p>Clarity for every purchasing decision.</p><span>© {new Date().getFullYear()} ProcureIQ</span></footer>
   </div>;
 }

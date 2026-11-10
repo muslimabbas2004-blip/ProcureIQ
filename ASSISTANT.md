@@ -16,6 +16,24 @@ executed. Records beyond the displayed limit still contribute to aggregates.
 
 ## Enable flexible natural-language planning
 
+### Ollama on the same machine
+
+1. Install [Ollama](https://docs.ollama.com/windows) and run `ollama pull qwen3.5:2b`.
+2. Copy `server/.env.example` to `server/.env` and set `OLLAMA_MODEL=qwen3.5:2b`.
+3. Keep Ollama running on its default loopback port, 11434, and refresh the
+   assistant. The badge reports configuration. A successful answer identifies
+   whether AI planning or the built-in interpreter handled it.
+
+ProcureIQ calls Ollama's [local chat API](https://docs.ollama.com/api/chat) with
+a JSON schema. It validates each plan before executing it. Ollama takes
+precedence over Gemini. Common, narrowly matched questions run directly
+against the local store. If Ollama cannot plan another request, the assistant
+asks for a clearer question.
+For company data, start Ollama with `OLLAMA_NO_CLOUD=1` or set
+`"disable_ollama_cloud": true` in its `server.json` and restart it.
+
+### Gemini
+
 1. Copy `server/.env.example` to `server/.env`.
 2. Set `GEMINI_API_KEY` to a valid server-side Gemini API credential.
 3. Set `GEMINI_MODEL` to a generateContent model available to that account that
@@ -33,15 +51,15 @@ matching item/vendor names and IDs are sent to the provider. Full transactional
 data and calculated results stay on the application server. Provider credentials
 are transmitted in the request header, not a URL.
 
-The integration uses Google's [generateContent JSON output configuration](https://ai.google.dev/gemini-api/docs/structured-output?lang=rest)
-plus strict application-level validation. There is a 25-second provider timeout,
-a maximum of four in-flight assistant requests, and bounded plan/result sizes.
+The Gemini integration uses Google's [generateContent JSON output configuration](https://ai.google.dev/gemini-api/docs/structured-output?lang=rest)
+plus application-level validation. Provider timeouts are 25 seconds for Gemini
+and 30 seconds for Ollama. The assistant bounds concurrent requests, plans,
+and result sizes.
 This does not bypass provider quotas or make request volume unlimited.
 
 ## Built-in mode
 
-Without provider configuration, or when the provider fails, an explicitly
-labelled local interpreter handles common queries. Examples:
+An explicitly labelled local interpreter handles common queries. Examples:
 
 - How many items and vendors are in the database?
 - Top 10 suppliers by spend in 2026
@@ -80,8 +98,9 @@ can guarantee every possible question or facts absent from the imported data.
 
 Run `npm --prefix server run test:assistant` and
 `npm --prefix server run test:scale`. Tests use isolated synthetic records and
-never overwrite persisted company data. Provider transport is mocked in tests;
-a real provider response cannot be verified until credentials/model are set.
+never overwrite persisted company data. Provider transport is mocked in these
+tests. To verify local inference, submit a query with Ollama running and check
+that the answer is labeled as an AI-planned data query.
 The scale test includes 45,000 items, 500 vendors, 100,000 orders and 200,000 lines.
 
 Production authentication and database deployment limits remain as documented

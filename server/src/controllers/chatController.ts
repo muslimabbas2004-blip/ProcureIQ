@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { store } from '../db/store.js';
-import { askGemini } from '../services/geminiService.js';
+import { askAssistant } from '../services/assistantService.js';
 import { validatePlan, Plan } from '../services/localPlanner.js';
 
 let activeRequests = 0;
@@ -20,7 +20,7 @@ export const handleChatQuery = async (req: Request, res: Response) => {
   activeRequests++;
   const h = history ?? [];
   try {
-    const answer = await askGemini(question.trim(), h, store, prior);
+    const answer = await askAssistant(question.trim(), h, store, prior);
     return res.json(answer);
   } catch (err) {
     console.error('Error in handleChatQuery:', err);

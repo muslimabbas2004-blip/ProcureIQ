@@ -83,9 +83,20 @@ function matches(row: Row, filter: Filter): boolean {
 export function executeQuery(store: DataStore, raw: unknown): QueryResult {
   const q = validateQuery(raw);
   const scope = q.scope ?? (['orders', 'lines'].includes(q.dataset) ? 'live' : 'all');
-  const vendors = new Map(store.vendors.map(v => [v.vendorId, v.vendorName]));
-  const items = new Map(store.items.map(i => [i.itemId, i]));
-  const orders = new Map(store.pos.map(p => [p.poId, p]));
+  const catalog = q.dataset === 'items' ? store.items : q.dataset === 'vendors' ? store.vendors : undefined;
+  if (catalog && q.metrics?.length && q.metrics.every(metric => metric.op === 'count') && !q.filters?.length && !q.groupBy?.length) {
+    const offset = q.offset ?? 0;
+    const columns = q.metrics.map(metric => metric.as);
+    return {
+      dataset: q.dataset, columns, rows: offset ? [] : [Object.fromEntries(columns.map(column => [column, catalog.length]))],
+      matchedRecords: catalog.length, totalRows: 1, truncated: offset > 0, scope, filters: []
+    };
+  }
+  const vendors = new Map(['orders', 'lines', 'historical', 'quotations'].includes(q.dataset)
+    ? store.vendors.map(v => [v.vendorId, v.vendorName]) : []);
+  const items = new Map(['lines', 'historical', 'quotations'].includes(q.dataset)
+    ? store.items.map(i => [i.itemId, i]) : []);
+  const orders = new Map(q.dataset === 'lines' ? store.pos.map(p => [p.poId, p]) : []);
   const dates = (date: string) => ({ month: date.slice(0, 7), year: date.slice(0, 4) });
   // Project only allowlisted columns; dataset previews and user credentials are never exposed.
   function* records(): Generator<Row> {

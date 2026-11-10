@@ -1,0 +1,39 @@
+.procurement-network {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.procurement-network-links {
+  stroke: #a8d6bf;
+  stroke-width: 1;
+  stroke-dasharray: 3 7;
+  stroke-opacity: .28;
+}
+
+.procurement-node {
+  color: #a7d3bd;
+}
+
+.procurement-node rect {
+  fill: #163e3a;
+  fill-opacity: .65;
+  stroke: currentColor;
+  stroke-opacity: .36;
+}
+
+.procurement-node .procurement-node-outline {
+  fill: none;
+  stroke-opacity: .15;
+}
+
+.procurement-node svg { opacity: .58; }
+.procurement-node circle { fill: #d8c394; fill-opacity: .62; }
+
+@media (max-width: 767px) {
+  .procurement-network { opacity: .7; }
+}

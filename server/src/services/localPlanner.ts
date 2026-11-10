@@ -12,6 +12,43 @@ export const examples = [
   'Which datasets have been imported?',
   'Show estimated savings opportunities'
 ];
+
+export function directPlan(question: string, store: DataStore, previous?: Plan): Plan | undefined {
+  const normalized = question.trim().toLowerCase()
+    .replace(/^(?:hi|hello|hey)[,!.]\s+/, '')
+    .replace(/^(?:please|can you)\s+/, '')
+    .replace(/[?.!]+$/, '')
+    .replace(/\s+/g, ' ');
+  const catalogCount = /^(?:how many|count|number of) (?:items|materials|vendors|suppliers)(?: and (?:vendors|suppliers))?(?: (?:are there|are in (?:the|our) (?:database|item catalog|supplier catalog|catalog)|in (?:the|our) (?:database|item catalog|supplier catalog|catalog)))?$/;
+  const spend = /^(?:(?:show|list) (?:me )?)?(?:(?:total|monthly) )?(?:purchase order |procurement )?(?:spend|expenditure)(?: (?:in|for) 20\d{2})?$/;
+  const suppliers = /^(?:show )?top [1-9]\d{0,2} (?:suppliers|vendors) by (?:total )?spend(?: (?:in|for) 20\d{2})?$/;
+  const continuation = /^(?:show (?:the )?next \d{1,3} results|show (?:this|that|the results) as a (?:pie|bar|line|area) chart)$/;
+  const priceComparison = normalized.match(/^compare (?:the )?(?:unit )?prices? (?:of|for) (.+?) (?:across|by) (?:suppliers|vendors)$/);
+  if (priceComparison) {
+    const name = priceComparison[1];
+    const items = store.items.filter(item => item.itemId.toLowerCase() === name || item.itemName.trim().toLowerCase() === name);
+    if (items.length !== 1) {
+      return { queries: [], clarification: items.length
+        ? 'Several items have that name. Use the item ID to compare prices.'
+        : 'I couldn’t find an exact item match. Use the item ID or full catalog name to compare prices.' };
+    }
+    return { queries: [{
+      dataset: 'lines', scope: 'live',
+      filters: [{ field: 'itemId', op: 'eq', value: items[0].itemId }],
+      groupBy: ['vendorName', 'vendorId'],
+      metrics: [{ op: 'weightedAvg', field: 'unitPrice', weight: 'quantity', as: 'averageUnitPrice' }],
+      sort: [{ field: 'averageUnitPrice', direction: 'asc' }],
+      limit: 20
+    }] };
+  }
+  if (examples.some(example => example.toLowerCase().replace(/\?$/, '') === normalized)
+    || catalogCount.test(normalized) || spend.test(normalized) || suppliers.test(normalized)
+    || (previous?.queries.length === 1 && continuation.test(normalized))) {
+    return localPlan(normalized, store, previous);
+  }
+  return undefined;
+}
+
 export function validatePlan(raw: unknown): Plan {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid query plan.');
   const p = raw as Plan;
@@ -26,7 +63,7 @@ export function localPlan(question: string, store: DataStore, previous?: Plan): 
   const clarify = (message: string): Plan => ({ queries: [], clarification: message });
   if (/\b(delete|remove|update|insert|change status|approve|cancel this|send email)\b/.test(s)) return clarify('I can analyze records, but cannot change data or send messages. Use the relevant administration screen to make changes.');
   if (/\b(stock|inventory|on.time|lead time|delivery date|late deliver\w*|overdue|invoice|payment|budget|contract|forecast|profit|tax|reliab\w*|quality score)\b/.test(s)) return clarify('The current data does not contain inventory balances, invoices, payment terms, budgets, contracts, promised/actual delivery dates, or quality measurements. I cannot determine those facts from purchase-order status alone. Ask about recorded orders, prices, quantities, vendors, quotations, or imports instead.');
-  if (/^(hi|hello|hey|help)\b|what can you|what data/.test(s)) return clarify('I can search and summarize the complete item catalog, suppliers, purchase orders and lines, historical purchases, quotations, and imported dataset metadata. Combine an item or vendor name/ID with dates, statuses, rankings, or numeric thresholds. Estimates and missing fields are identified explicitly.');
+  if (/^help[.!?]*$|what can you|what data/.test(s)) return clarify('I can search and summarize the complete item catalog, suppliers, purchase orders and lines, historical purchases, quotations, and imported dataset metadata. Combine an item or vendor name/ID with dates, statuses, rankings, or numeric thresholds. Estimates and missing fields are identified explicitly.');
   const filters: Filter[] = [];
   const dates = [...s.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)].map(m => m[0]);
   const year = s.match(/\b(20\d{2})\b/)?.[1];

@@ -65,8 +65,20 @@ export interface HistoricalPurchase {
 }
 
 export interface AiAnswer {
-  tables?: { title: string; head: string[]; rows: (string | number)[][] }[];
-  mode?: 'ai' | 'local';
+  tables?: {
+    title: string;
+    head: string[];
+    rows: (string | number)[][];
+    details?: {
+      matched: number;
+      total: number;
+      aggregate: boolean;
+      metricLabels?: Record<string, string>;
+      notes: string[];
+      filters: import('../services/queryEngine.js').Filter[];
+    };
+  }[];
+  mode?: 'ai' | 'local' | 'conversation';
   warnings?: string[];
   plan?: import('../services/localPlanner.js').Plan;
   text: string;

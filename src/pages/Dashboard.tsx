@@ -12,7 +12,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  Cell
+  Legend
 } from 'recharts';
 import {
   DollarSign,
@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { fetchDashboardOverview, DashboardOverviewData, fmt } from '../services/analyticsService';
+import { compactValue, monthLabel, rupees } from '../components/chartFormat';
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardOverviewData | null>(null);
@@ -273,17 +274,18 @@ export default function Dashboard() {
       {/* Spend Trends & Pareto Spend Concentration */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Main Spend Chart */}
-        <div className="card space-y-4">
+        <div className="card min-w-0 space-y-4">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Procurement Expenditure Trend</h2>
+              <h2 className="text-base font-bold text-slate-900">Monthly purchase order spend</h2>
               <p className="text-xs text-slate-500">
-                Monthly purchasing volumes across all suppliers from Nov 2025 to Oct 2026
+                {l ? `PKR · ${monthLabel(m[0].name)} to ${monthLabel(l.name)} · months with recorded orders` : 'PKR · live purchase orders'}
               </p>
             </div>
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
               <button
                 onClick={() => setChartView('area')}
+                aria-pressed={chartView === 'area'}
                 className={`text-xs px-3 py-1 rounded-md font-medium transition-all ${
                   chartView === 'area'
                     ? 'bg-white text-royal shadow-sm'
@@ -294,6 +296,7 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => setChartView('bar')}
+                aria-pressed={chartView === 'bar'}
                 className={`text-xs px-3 py-1 rounded-md font-medium transition-all ${
                   chartView === 'bar'
                     ? 'bg-white text-royal shadow-sm'
@@ -305,7 +308,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="w-full h-72 pt-2">
+          {m.length ? <div className="w-full h-72 pt-2">
             <ResponsiveContainer width="100%" height="100%">
               {chartView === 'area' ? (
                 <AreaChart data={m} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -316,14 +319,16 @@ export default function Dashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={11} stroke="#94A3B8" />
+                  <XAxis dataKey="name" tickFormatter={monthLabel} minTickGap={16} fontSize={11} stroke="#64748B" />
                   <YAxis
                     fontSize={11}
                     stroke="#94A3B8"
-                    tickFormatter={v => (v / 1e6).toFixed(1) + 'M'}
+                    width={52}
+                    tickFormatter={compactValue}
                   />
                   <Tooltip
-                    formatter={(val: number) => [fmt(val), 'Monthly Spend']}
+                    labelFormatter={monthLabel}
+                    formatter={(val: number) => [rupees(val), 'Spend']}
                     contentStyle={{
                       backgroundColor: '#1E293B',
                       color: '#fff',
@@ -345,14 +350,16 @@ export default function Dashboard() {
               ) : (
                 <BarChart data={m} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={11} stroke="#94A3B8" />
+                  <XAxis dataKey="name" tickFormatter={monthLabel} minTickGap={16} fontSize={11} stroke="#64748B" />
                   <YAxis
                     fontSize={11}
                     stroke="#94A3B8"
-                    tickFormatter={v => (v / 1e6).toFixed(1) + 'M'}
+                    width={52}
+                    tickFormatter={compactValue}
                   />
                   <Tooltip
-                    formatter={(val: number) => [fmt(val), 'Monthly Spend']}
+                    labelFormatter={monthLabel}
+                    formatter={(val: number) => [rupees(val), 'Spend']}
                     contentStyle={{
                       backgroundColor: '#1E293B',
                       color: '#fff',
@@ -366,41 +373,39 @@ export default function Dashboard() {
                 </BarChart>
               )}
             </ResponsiveContainer>
-          </div>
+          </div> : <p className="text-sm text-slate-600">Import purchase orders to see monthly spend.</p>}
         </div>
 
         {/* Supplier Pareto Curve (80/20 Rule) */}
-        <div className="card space-y-4">
+        <div className="card min-w-0 space-y-4">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-900">Supplier Pareto Spend (80/20 Rule)</h2>
+                <h2 className="text-base font-bold text-slate-900">How concentrated is supplier spend?</h2>
                 <span className="badge bg-amber-50 text-amber-700 border border-amber-200">
                   Spend Concentration
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Bars show spend per supplier; amber line tracks cumulative % with 80% threshold.
+                Top {Math.min(pareto.length, 8)} suppliers by spend (PKR). The line adds their shares of all supplier spend from left to right.
               </p>
             </div>
-            <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2.5 py-1 rounded-md self-start sm:self-auto">
-              Cumulative Share
-            </span>
           </div>
 
-          <div className="w-full h-72 pt-2">
+          {pareto.length ? <div className="w-full h-72 pt-2">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
                 data={pareto ? pareto.slice(0, 8) : []}
                 margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
               >
                 <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="shortName" fontSize={11} stroke="#94A3B8" />
+                <XAxis dataKey="rank" tickFormatter={rank => `#${rank}`} fontSize={11} stroke="#64748B" />
                 <YAxis
                   yAxisId="left"
                   fontSize={11}
                   stroke="#94A3B8"
-                  tickFormatter={v => (v / 1e6).toFixed(1) + 'M'}
+                  width={48}
+                  tickFormatter={compactValue}
                 />
                 <YAxis
                   yAxisId="right"
@@ -408,13 +413,12 @@ export default function Dashboard() {
                   fontSize={11}
                   stroke="#94A3B8"
                   unit="%"
+                  width={44}
                   domain={[0, 100]}
                 />
                 <Tooltip
-                  formatter={(val: number, name: string) => [
-                    name === 'spend' ? fmt(val) : `${val}%`,
-                    name === 'spend' ? 'Spend Value' : 'Cumulative %'
-                  ]}
+                  labelFormatter={rank => pareto.find(supplier => supplier.rank === Number(rank))?.name ?? `Supplier #${rank}`}
+                  formatter={(val: number, name: string) => [name === 'Spend (PKR)' ? rupees(val) : `${val}%`, name]}
                   contentStyle={{
                     backgroundColor: '#1E293B',
                     color: '#fff',
@@ -423,26 +427,21 @@ export default function Dashboard() {
                     fontSize: '12px'
                   }}
                 />
-                <ReferenceLine yAxisId="right" y={80} stroke="#EF4444" strokeDasharray="4 4" label={{ value: '80% Threshold', fill: '#EF4444', fontSize: 10, position: 'insideTopLeft' }} />
-                <Bar yAxisId="left" dataKey="spend" radius={[6, 6, 0, 0]}>
-                  {(pareto || []).slice(0, 8).map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.isTop80 ? '#356AE6' : '#94A3B8'}
-                    />
-                  ))}
-                </Bar>
+                <ReferenceLine yAxisId="right" y={80} stroke="#9A3412" strokeDasharray="4 4" label={{ value: '80% of all spend', fill: '#9A3412', fontSize: 10, position: 'insideTopLeft' }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar yAxisId="left" dataKey="spend" name="Spend (PKR)" fill="#176b60" radius={[4, 4, 0, 0]} maxBarSize={40} />
                 <Line
                   yAxisId="right"
                   type="monotone"
                   dataKey="cumulativeShare"
-                  stroke="#F59E0B"
+                  name="Cumulative share"
+                  stroke="#A86109"
                   strokeWidth={2.5}
-                  dot={{ r: 3, fill: '#F59E0B' }}
+                  dot={{ r: 3, fill: '#A86109' }}
                 />
               </ComposedChart>
             </ResponsiveContainer>
-          </div>
+          </div> : <p className="text-sm text-slate-600">No supplier spend is available yet.</p>}
         </div>
       </div>
 

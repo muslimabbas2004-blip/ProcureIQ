@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { DataStore } from './dist/db/store.js';
 import { executeQuery, validateQuery } from './dist/services/queryEngine.js';
 import { localPlan, validatePlan, examples } from './dist/services/localPlanner.js';
-import { askGemini, planWithProvider } from './dist/services/geminiService.js';
+import { askAssistant, assistantStatus, planWithProvider } from './dist/services/assistantService.js';
 
 const store = new DataStore(false);
 store.vendors = [{ vendorId: 'V1', vendorName: 'Alpha', status: 'Active' }, { vendorId: 'V2', vendorName: 'Beta', status: 'Inactive' }];
@@ -60,6 +60,7 @@ check('Chart follow-up keeps the previous filters and result limit', () => {
 });
 for (const question of examples) check('Example produces a valid plan: ' + question, () => { const p = local(question); assert.ok(p.queries.length); p.queries.forEach(query); });
 // Stub provider transport, no external request or credential required.
+process.env.OLLAMA_MODEL = '';
 process.env.GEMINI_API_KEY = 'test-only'; process.env.GEMINI_MODEL = 'test-model';
 const provider = await planWithProvider('Count items', [], store, undefined, async (url, init) => {
   assert.ok(!String(url).includes('test-only'));
@@ -69,9 +70,56 @@ const provider = await planWithProvider('Count items', [], store, undefined, asy
 check('Provider output validated and executed locally', () => assert.equal(query(provider.queries[0]).rows[0].n, 2));
 await assert.rejects(() => planWithProvider('bad', [], store, undefined, async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"queries":[{"dataset":"users"}]}' }] } }] }))));
 delete process.env.GEMINI_API_KEY; delete process.env.GEMINI_MODEL;
-const answer = await askGemini('How many items and vendors are in the database?', [], store);
-check('Answer uses local truth and multiple tables', () => { assert.equal(answer.tables.length, 2); assert.equal(answer.mode, 'local'); assert.ok(answer.warnings.length); });
+process.env.OLLAMA_MODEL = 'qwen3.5:2b';
+const localProvider = await planWithProvider('Count items', [], store, undefined, async (url, init) => {
+  assert.equal(url, 'http://127.0.0.1:11434/api/chat');
+  assert.equal(init.redirect, 'error');
+  const body = JSON.parse(init.body);
+  assert.equal(body.model, 'qwen3.5:2b');
+  assert.equal(body.stream, false);
+  assert.deepEqual(body.format.required, ['queries']);
+  return Response.json({ message: { content: JSON.stringify({ queries: [{ dataset: 'items', metrics: [{ op: 'count', as: 'n' }] }] }) } });
+});
+check('Ollama selected and structured plan executes locally', () => {
+  assert.equal(assistantStatus().provider, 'ollama');
+  assert.equal(query(localProvider.queries[0]).rows[0].n, 2);
+});
+await assert.rejects(() => planWithProvider('bad', [], store, undefined, async () =>
+  Response.json({ message: { content: '{"queries":[{"dataset":"users"}]}' } })));
+process.env.OLLAMA_MODEL = 'test:cloud';
+const hello = await askAssistant('Hello!', [], store);
+check('Greetings bypass a configured provider and return no data', () => {
+  assert.equal(hello.mode, 'conversation');
+  assert.match(hello.text, /^Hi!/);
+  assert.equal(hello.tables, undefined);
+  assert.equal(hello.warnings, undefined);
+});
+check('A greeting followed by a question still produces a query plan', () => {
+  assert.equal(local('Hello, how many items are in the catalog?').queries[0].dataset, 'items');
+});
+const fastCount = await askAssistant('How many items and vendors are in the database?', [], store);
+const fastSpend = await askAssistant('Show monthly purchase order spend for 2026.', [], store);
+const fastPrice = await askAssistant('Compare the prices of Steel across vendors', [], store);
+check('Common requests answer from live data without the configured provider', () => {
+  assert.equal(fastCount.mode, 'local');
+  assert.deepEqual(fastCount.tables.map(table => table.rows), [[[2]], [[2]]]);
+  assert.deepEqual(fastCount.warnings, []);
+  assert.deepEqual(fastSpend.tables[0].rows, [['2026-01', 100], ['2026-02', 300]]);
+  assert.deepEqual(fastPrice.tables[0].rows, [['Alpha', 'V1', 50], ['Beta', 'V2', 100]]);
+});
+const fallback = await askAssistant('Break down order spend by supplier and show the average quantity per item', [], store);
+check('Unavailable Ollama asks for a clearer request instead of returning a partial guess', () => {
+  assert.equal(fallback.tables, undefined);
+  assert.match(fallback.text, /couldn’t build a reliable query/);
+});
+process.env.OLLAMA_MODEL = '';
+const answer = await askAssistant('How many items and vendors are in the database?', [], store);
+check('Built-in answers use local data without a setup warning', () => {
+  assert.equal(answer.tables.length, 2);
+  assert.equal(answer.mode, 'local');
+  assert.deepEqual(answer.warnings, []);
+});
 const empty = new DataStore(false);
-const emptyAnswer = await askGemini('Show monthly expenditure', [], empty);
+const emptyAnswer = await askAssistant('Show monthly expenditure', [], empty);
 check('Empty store returns useful answer', () => assert.match(emptyAnswer.text, /No matching data/));
 console.log(`${checks} checks passed; provider transport mocked, no data written.`);

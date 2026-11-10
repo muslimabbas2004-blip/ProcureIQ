@@ -17,6 +17,7 @@ import {
   X
 } from 'lucide-react';
 import { Guard, useAuth } from './context/Auth';
+import Brand from './components/Brand';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -55,26 +56,14 @@ function Shell() {
   return (
     <div className="app-shell min-h-screen md:flex bg-slate-50">
       <div className="mobile-app-bar md:hidden">
-        <Link to="/app" className="mobile-app-brand">PROCUREIQ<span>.</span></Link>
+        <Brand to="/app" dark />
         <button type="button" className="mobile-menu-toggle" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={menuOpen} aria-controls="app-navigation" onClick={() => setMenuOpen(open => !open)}>
           {menuOpen ? <X size={21} /> : <Menu size={21} />}
         </button>
       </div>
       {/* Sidebar */}
       <aside id="app-navigation" aria-label="Main navigation" className={`${menuOpen ? 'flex' : 'hidden'} bg-navy text-white md:w-64 md:min-h-screen p-3 md:p-5 md:flex flex-col gap-1 border-r border-slate-800 flex-shrink-0`}>
-        <div className="hidden md:flex items-center gap-3 mb-8 px-2">
-          <div className="w-8 h-8 rounded-lg bg-teal flex items-center justify-center font-bold text-navy text-sm shadow-sm">
-            PQ
-          </div>
-          <div>
-            <Link to="/app" className="font-display text-xl font-bold tracking-tight block">
-              PROCUREIQ
-            </Link>
-            <span className="text-[10px] text-teal font-medium tracking-wide block uppercase">
-              Procurement Intelligence
-            </span>
-          </div>
-        </div>
+        <Brand to="/app" dark tagline className="mb-8 px-2 max-md:hidden" />
 
         <nav aria-label="Procurement sections" className="flex flex-col gap-1 w-full flex-1">
           {nav.map(([to, l, Icon]) => (

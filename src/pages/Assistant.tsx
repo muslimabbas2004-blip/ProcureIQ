@@ -11,14 +11,11 @@ import {
 } from 'recharts';
 import {
   Sparkles,
-  Send,
+  ArrowUp,
+  ArrowUpRight,
   Trash2,
-  Database,
-  Building2,
-  TrendingUp,
-  DollarSign,
-  Package,
-  Layers,
+  MessageSquare,
+  SlidersHorizontal,
   Reply,
   Plus,
   X
@@ -26,17 +23,38 @@ import {
 import { ask, getAssistantStatus } from '../services/aiService';
 import type { AiAnswer } from '../types';
 import { useAuth } from '../context/Auth';
-import AnswerVisualization from './AnswerVisualization';
+import { BrandMark } from '../components/Brand';
+import { compactValue, exactValue, monthLabel, rupees } from '../components/chartFormat';
+import AssistantResult from './AssistantResult';
+import './Assistant.css';
+import { greetingReply } from '../../server/src/services/assistantGreeting';
 
 type M = { role: 'u' | 'a'; text: string; ans?: AiAnswer; replyTo?: string };
 type Conversation = { id: string; title: string; updated: number; messages: M[] };
 type SavedChats = { chats: Conversation[]; memory: boolean };
 const makeChat = (): Conversation => ({ id: crypto.randomUUID(), title: 'New conversation', updated: Date.now(), messages: [] });
 const storageKey = (email: string) => 'procureiq.chats.v1.' + email.toLowerCase();
+const legacySetupNotice = 'Built-in query mode. Configure a server AI provider for flexible natural-language questions.';
+function repairSavedGreetings(chat: Conversation): Conversation {
+  const messages = chat.messages.map((message, index) => {
+    const previous = chat.messages[index - 1];
+    if (previous?.role !== 'u' || typeof previous.text !== 'string' || message?.role !== 'a'
+      || (!message.ans?.tables?.length && !message.ans?.table && !message.ans?.chart)) return message;
+
+    const greeting = greetingReply(previous.text);
+    if (!greeting) return message;
+    return {
+      ...message,
+      text: greeting,
+      ans: { text: greeting, mode: 'conversation' as const, sources: [], followups: message.ans?.followups ?? [] }
+    };
+  });
+  return { ...chat, messages };
+}
 const readChats = (email: string): SavedChats => {
   try {
     const value = JSON.parse(localStorage.getItem(storageKey(email)) || 'null');
-    if (value && Array.isArray(value.chats)) return { chats: value.chats.filter((c: any) => c && typeof c.id === 'string' && Array.isArray(c.messages)).slice(0, 30), memory: value.memory !== false };
+    if (value && Array.isArray(value.chats)) return { chats: value.chats.filter((c: any) => c && typeof c.id === 'string' && Array.isArray(c.messages)).slice(0, 30).map(repairSavedGreetings), memory: value.memory !== false };
   } catch { /* A fresh conversation remains available if stored data is invalid. */ }
   return { chats: [], memory: true };
 };
@@ -56,10 +74,6 @@ const S = [
   'Which materials have increased in price?',
   'Tell me about Lahore Cement Traders'
 ];
-
-function AssistantMark({ animated = false }: { animated?: boolean }) {
-  return <span className={`assistant-mark ${animated ? 'assistant-mark-working' : ''}`} aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><path d="M20 5 32.5 12.5v15L20 35 7.5 27.5v-15L20 5Z" stroke="currentColor" strokeWidth="1.5"/><path d="M20 12v16M12 20h16M14.4 14.4l11.2 11.2M25.6 14.4 14.4 25.6" stroke="currentColor" strokeWidth="1.1" opacity=".7"/><circle cx="20" cy="20" r="3.5" fill="currentColor"/></svg></span>;
-}
 
 function FormattedText({ text }: { text: string }) {
   const paragraphs = text.split('\n');
@@ -128,12 +142,17 @@ export default function Assistant() {
   const [status, setStatus] = useState('Checking connection');
   const [suggestions, setSuggestions] = useState(S);
   useEffect(() => {
-    getAssistantStatus().then(s => { setStatus(s.configured ? 'AI provider configured' : 'Built-in data queries'); setSuggestions(s.examples); }).catch(() => setStatus('Server unavailable'));
+    getAssistantStatus().then(s => {
+      setStatus(s.provider === 'ollama' ? 'Local Ollama configured' : s.configured ? 'AI provider configured' : 'Built-in data queries');
+      setSuggestions(s.examples);
+    }).catch(() => setStatus('Server unavailable'));
   }, []);
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    end.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!msgs.length && !busy) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    end.current?.scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth', block: 'nearest' });
   }, [msgs, busy]);
 
   const send = async (t: string) => {
@@ -176,44 +195,76 @@ export default function Assistant() {
   };
 
   return (
-    <div className="assistant-layout assistant-modern max-w-4xl mx-auto flex flex-col h-[calc(100vh-8rem)]">
-      <div className="assistant-modern-header">
-        <div className="assistant-identity"><AssistantMark /><div><strong>ProcureIQ <span>Assistant</span></strong><p>Your procurement intelligence workspace</p></div></div>
-        <span className="assistant-status"><span />{status}</span>
-      </div>
+    <div className="assistant-layout assistant-modern">
+      <header className="assistant-modern-header">
+        <div className="assistant-identity">
+          <BrandMark className="assistant-mark" />
+          <div>
+            <h1>ProcureIQ Assistant</h1>
+            <p>Procurement intelligence</p>
+          </div>
+        </div>
+        <span className="assistant-status" data-unavailable={status === 'Server unavailable'} role="status">
+          <span />{status}
+        </span>
+      </header>
 
-      <div className="chat-history-controls">
-        <label htmlFor="chat-history">Conversation</label>
-        <select id="chat-history" value={active.id} disabled={busy} onChange={e => { setActiveId(e.target.value); setReplyIndex(null); setQ(''); }}>
-          {chats.map(c => <option value={c.id} key={c.id}>{c.title}</option>)}
-        </select>
-        <button type="button" className="btn2" disabled={busy} onClick={newChat}><Plus size={15} /> New</button>
-        <button type="button" className="btn2" disabled={busy} onClick={deleteChat} aria-label="Delete current conversation" title="Delete current conversation"><Trash2 size={15} /></button>
+      <div className="assistant-toolbar">
+        <div className="chat-history-controls">
+          <label htmlFor="chat-history" className="sr-only">Conversation</label>
+          <MessageSquare size={16} aria-hidden="true" className="assistant-history-icon" />
+          <select id="chat-history" value={active.id} disabled={busy} onChange={e => { setActiveId(e.target.value); setReplyIndex(null); setQ(''); }}>
+            {chats.map(c => <option value={c.id} key={c.id}>{c.title}</option>)}
+          </select>
+          <button type="button" className="btn2" disabled={busy} onClick={newChat} aria-label="New conversation">
+            <Plus size={16} /> <span>New chat</span>
+          </button>
+          <button type="button" className="btn2" disabled={busy} onClick={deleteChat} aria-label="Delete current conversation" title="Delete current conversation">
+            <Trash2 size={15} />
+          </button>
+        </div>
+        <details className="assistant-memory-details">
+          <summary><SlidersHorizontal size={15} aria-hidden="true" /> Settings <span>{memory ? 'Memory on' : 'Memory off'}</span></summary>
+          <div className="chat-memory-controls">
+            <label><input type="checkbox" checked={memory} onChange={e => setMemory(e.target.checked)} /> Use relevant past questions as context</label>
+            <span>Saved on this browser. Relevant questions may be sent to the AI provider. Responses use current data.</span>
+          </div>
+        </details>
       </div>
-<details className="assistant-memory-details"><summary>Conversation settings <span>{memory ? 'Memory on' : 'Memory off'}</span></summary><div className="chat-memory-controls"><label><input type="checkbox" checked={memory} onChange={e => setMemory(e.target.checked)} /> Use relevant past questions as context</label><span>Saved on this browser. Relevant questions may be sent to the AI provider; responses always use current data.</span></div></details>
       {storageError && <p role="alert" className="text-sm text-rose-700">{storageError}</p>}
-      <div className="assistant-thread flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+      <div className="assistant-thread space-y-4">
         {!msgs.length && (
           <div className="assistant-welcome">
             <div className="assistant-welcome-content">
-            <div className="assistant-aurora" aria-hidden="true"><span/><span/><span/></div>
-            <AssistantMark />
-            <span className="assistant-welcome-label"><span className="welcome-live-dot" /> YOUR PROCUREMENT WORKSPACE</span>
-            <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
-              Good questions. <em>Better decisions.</em>
-            </h1>
-            <p className="text-mute text-sm mt-2 max-w-xl mx-auto">
-              Meet your procurement copilot. Ask about your data and discover the insight behind every purchase.
-            </p>
-            </div><div className="assistant-discovery-strip" aria-hidden="true"><span>SUPPLIERS <b>↗</b></span><span>PRICES <b>↗</b></span><span>SPEND <b>↗</b></span><span>OPPORTUNITIES <b>↗</b></span></div><div className="assistant-prompts-heading"><span>NEED A STARTING POINT?</span><span>CHOOSE A QUESTION</span></div>
+              <div className="assistant-welcome-copy">
+                <span className="assistant-welcome-label"><Sparkles size={15} aria-hidden="true" /> Explore your procurement data</span>
+                <h2>What would you<br className="assistant-hero-break" />{' '}like to know?</h2>
+                <p>Compare suppliers, track spending, and find savings opportunities in your purchasing data.</p>
+              </div>
+              <svg className="assistant-hero-art" viewBox="0 0 260 190" fill="none" aria-hidden="true">
+                <ellipse cx="135" cy="96" rx="115" ry="62" transform="rotate(-24 135 96)" stroke="currentColor" opacity=".35" />
+                <ellipse cx="135" cy="96" rx="115" ry="62" transform="rotate(24 135 96)" stroke="currentColor" opacity=".24" />
+                <circle cx="135" cy="96" r="67" stroke="currentColor" strokeDasharray="2 6" opacity=".55" />
+                <circle cx="135" cy="96" r="46" fill="#205f50" stroke="currentColor" strokeOpacity=".5" />
+                <path d="M112 118h46M116 110V96h9v14m6 0V84h9v26m6 0V73h9v37" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="55" cy="65" r="5" fill="#e4c58f" />
+                <circle cx="219" cy="57" r="5" fill="currentColor" />
+                <circle cx="211" cy="139" r="4" fill="currentColor" />
+                <path d="M81 139v14m-7-7h14M183 31v12m-6-6h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <h3 className="assistant-prompts-heading">Suggested questions</h3>
             <div className="assistant-suggestions">
-              {suggestions.map((s, index) => (
+              {suggestions.map(s => (
                 <button
                   key={s}
+                  type="button"
                   className="assistant-suggestion"
                   onClick={() => send(s)}
                 >
-                  <span className="assistant-prompt-number" aria-hidden="true">{String(index + 1).padStart(2, '0')} / EXPLORE</span><span className="assistant-prompt-text">{s}</span><span className="assistant-suggestion-arrow" aria-hidden="true">↗</span>
+                  <MessageSquare size={16} aria-hidden="true" className="assistant-prompt-icon" />
+                  <span>{s}</span>
+                  <ArrowUpRight size={17} aria-hidden="true" className="assistant-suggestion-arrow" />
                 </button>
               ))}
             </div>
@@ -232,52 +283,45 @@ export default function Assistant() {
           ) : (
             <div key={i} className="assistant-answer space-y-3.5">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-xs text-slate-500">
-                <AssistantMark />
+                <BrandMark className="assistant-mark" />
                 <span className="font-bold text-slate-700">ProcureIQ Copilot</span>
-                <span className="text-[10px] text-slate-400">• {m.ans?.mode === 'ai' ? 'AI-planned data query' : 'Built-in data query'}</span>
+                {m.ans?.mode && m.ans.mode !== 'conversation' && <span className="text-[10px] text-slate-500">• {m.ans.mode === 'ai' ? 'AI-planned data query' : 'Direct data query'}</span>}
               </div>
 
-              <FormattedText text={m.text} />
-              {!!m.ans?.plan && <button type="button" disabled={busy} className="chat-reply-button" onClick={() => { setReplyIndex(i); input.current?.focus(); }}><Reply size={14} /> Reply to this answer</button>}
-              {m.ans?.warnings?.map(w => <p key={w} className="text-xs text-amber-800 bg-amber-50 rounded p-2">{w}</p>)}
+              {(!m.ans?.tables?.length || !m.ans.plan) && <FormattedText text={m.text} />}
 
-              {(m.ans?.tables ?? (m.ans?.table ? [{ ...m.ans.table, title: 'Results' }] : [])).map((table, tableIndex) => (
-                <div key={tableIndex} className="overflow-x-auto border rounded-xl shadow-xs">
-                  <div className="p-2 font-semibold text-sm">{table.title}</div>
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                      <tr>
-                        {table.head.map(h => (
-                          <th key={h} className="p-2.5 text-left font-semibold text-slate-700">
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {table.rows.map((r, j) => (
-                        <tr key={j} className="hover:bg-slate-50/80">
-                          {r.map((c, k) => (
-                            <td key={k} className="p-2.5 text-slate-700">
-                              {c}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <AnswerVisualization table={table} question={msgs.slice(0, i).reverse().find(message => message.role === 'u')?.text ?? ''} />
-                </div>
+              {(m.ans?.tables?.length ? m.ans.tables : m.ans?.table ? [{ ...m.ans.table, title: 'Results' }] : []).map((table, tableIndex) => (
+                <AssistantResult
+                  key={tableIndex}
+                  table={table}
+                  question={msgs.slice(0, i).reverse().find(message => message.role === 'u')?.text ?? ''}
+                  initiallyOpen={Boolean(!m.ans?.tables?.length && m.ans?.chart)}
+                />
               ))}
+              {m.ans?.plan && m.ans.tables?.some(table => !table.details) ? (
+                <details className="assistant-answer-meta">
+                  <summary>Original summary</summary>
+                  <FormattedText text={m.text} />
+                </details>
+              ) : null}
 
-              {!m.ans?.tables?.length && m.ans?.chart && m.ans.chart.data && m.ans.chart.data.length > 0 && (
-                <div className="w-full h-60 pt-2 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+              {!m.ans?.tables?.length && !m.ans?.table && m.ans?.chart?.data.length ? (
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3">
+                  <h3 className="mb-2 text-sm font-semibold text-slate-800">
+                    {m.ans.chart.data.every(point => monthLabel(point.name) !== point.name)
+                      ? m.ans.chart.type === 'line' ? 'Monthly average unit price (PKR)' : 'Monthly purchase order spend (PKR)'
+                      : 'Result by category'}
+                  </h3>
+                  <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     {m.ans.chart.type === 'bar' ? (
                       <BarChart data={m.ans.chart.data}>
-                        <XAxis dataKey="name" fontSize={11} stroke="#94A3B8" />
-                        <YAxis fontSize={11} stroke="#94A3B8" />
+                        <XAxis dataKey="name" tickFormatter={monthLabel} minTickGap={14} fontSize={11} stroke="#64748B" />
+                        <YAxis width={48} tickFormatter={compactValue} fontSize={11} stroke="#64748B" />
                         <Tooltip
+                          labelFormatter={monthLabel}
+                          formatter={(value: number, _name, item) => monthLabel(item.payload.name) !== item.payload.name
+                            ? [rupees(value), 'Spend'] : [exactValue(value), 'Value']}
                           contentStyle={{
                             backgroundColor: '#1E293B',
                             color: '#fff',
@@ -286,13 +330,16 @@ export default function Assistant() {
                             fontSize: '12px'
                           }}
                         />
-                        <Bar dataKey="value" fill="#176b60" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="value" fill="#176b60" radius={[4, 4, 0, 0]} maxBarSize={42} />
                       </BarChart>
                     ) : (
                       <LineChart data={m.ans.chart.data}>
-                        <XAxis dataKey="name" fontSize={11} stroke="#94A3B8" />
-                        <YAxis domain={['auto', 'auto']} fontSize={11} stroke="#94A3B8" />
+                        <XAxis dataKey="name" tickFormatter={monthLabel} minTickGap={14} fontSize={11} stroke="#64748B" />
+                        <YAxis width={48} tickFormatter={compactValue} fontSize={11} stroke="#64748B" />
                         <Tooltip
+                          labelFormatter={monthLabel}
+                          formatter={(value: number, _name, item) => monthLabel(item.payload.name) !== item.payload.name
+                            ? [rupees(value), 'Average unit price'] : [exactValue(value), 'Value']}
                           contentStyle={{
                             backgroundColor: '#1E293B',
                             color: '#fff',
@@ -311,34 +358,40 @@ export default function Assistant() {
                       </LineChart>
                     )}
                   </ResponsiveContainer>
+                  </div>
                 </div>
-              )}
+              ) : null}
 
-              {m.ans?.sources && m.ans.sources.length > 0 && (
-                <div className="text-[11px] text-slate-400 pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
-                  <span className="font-semibold text-slate-500">Citations:</span>
-                  {m.ans.sources.map((s, idx) => (
-                    <span
-                      key={idx}
-                      className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200"
-                    >
-                      {s}
-                    </span>
-                  ))}
+              {m.ans?.warnings?.filter(w => w !== legacySetupNotice).map(w => (
+                <p key={w} className="text-xs text-amber-800 bg-amber-50 rounded p-2">{w}</p>
+              ))}
+
+              {(!!m.ans?.sources?.length || !!m.ans?.plan) && (
+                <div className="assistant-answer-actions">
+                  {!!m.ans?.plan && <button type="button" disabled={busy} className="chat-reply-button" onClick={() => { setReplyIndex(i); input.current?.focus(); }}><Reply size={14} /> Reply to this answer</button>}
+                  {!!m.ans?.sources?.length && <details className="assistant-answer-meta">
+                    <summary>Data sources ({m.ans.sources.length})</summary>
+                    <ul>{m.ans.sources.map((source, index) => <li key={index}>{source}</li>)}</ul>
+                  </details>}
                 </div>
               )}
 
               {m.ans?.followups && m.ans.followups.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-2">
+                <div className="assistant-answer-followups">
+                  <h3>Suggested follow-ups</h3>
+                  <div className="flex flex-wrap gap-1.5">
                   {m.ans.followups.map(f => (
                     <button
                       key={f}
+                      type="button"
+                      disabled={busy}
                       className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-royal hover:text-white text-slate-700 transition-colors border border-slate-200"
                       onClick={() => send(f)}
                     >
                       {f}
                     </button>
                   ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -347,7 +400,7 @@ export default function Assistant() {
 
         {busy && (
           <div className="assistant-thinking" role="status" aria-live="polite">
-            <AssistantMark animated />
+            <BrandMark className="assistant-mark" />
             <div><strong>Working on your question<span className="thinking-dots"><i>.</i><i>.</i><i>.</i></span></strong><p>Looking through your procurement data</p></div>
           </div>
         )}
@@ -356,14 +409,13 @@ export default function Assistant() {
 
       {replyIndex !== null && msgs[replyIndex] && <div className="chat-reply-preview"><span>Replying to: {msgs[replyIndex].text.slice(0, 120)}</span><button type="button" onClick={() => setReplyIndex(null)} aria-label="Cancel reply"><X size={16} /></button></div>}
       <form
-        className="assistant-form assistant-composer flex gap-2 pt-3"
+        className="assistant-form assistant-composer"
         onSubmit={e => {
           e.preventDefault();
           send(q);
         }}
       >
         <input
-          className="flex-1 min-w-0 border rounded-xl p-3 text-sm focus:outline-none focus:border-royal bg-white shadow-xs"
           aria-label="Ask a procurement question"
           placeholder="Ask anything about your procurement data…"
           ref={input}
@@ -372,9 +424,9 @@ export default function Assistant() {
           disabled={busy}
           onChange={e => setQ(e.target.value)}
         />
-        <button className="btn flex items-center gap-1.5" type="submit" disabled={busy || !q.trim()}>
-          <Send size={16} />
+        <button className="btn" type="submit" aria-label="Send question" disabled={busy || !q.trim()}>
           <span className="assistant-send-label">Ask</span>
+          <ArrowUp size={17} aria-hidden="true" />
         </button>
       </form>
     </div>

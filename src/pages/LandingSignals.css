@@ -1,0 +1,69 @@
+.landing-scene {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+}
+
+.landing-spotlight {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: clamp(340px, 54vw, 760px);
+  aspect-ratio: 1;
+  z-index: 1;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #63cba947 0%, #75cbb327 32%, transparent 69%);
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+
+.landing-spotlight[data-active="true"] { opacity: 1; }
+
+.landing-scene .landing-hero-inner,
+.landing-scene .landing-section-heading,
+.landing-scene .feature-index,
+.landing-scene .landing-how > div,
+.landing-scene .landing-bottom > * {
+  position: relative;
+  z-index: 2;
+}
+
+.landing-features,
+.landing-how { position: relative; }
+
+.landing-trace {
+  position: absolute;
+  top: 0;
+  right: 1%;
+  width: min(30%, 330px);
+  color: #39775e;
+  opacity: .36;
+  pointer-events: none;
+}
+
+.landing-how .landing-trace { right: auto; left: 1%; top: auto; bottom: 2%; }
+.landing-trace-route { stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 3 5; }
+.landing-trace-guide { stroke: currentColor; opacity: .16; }
+.landing-trace > circle { fill: #f4f1e9; stroke: currentColor; stroke-width: 1.5; }
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .landing-trace {
+      animation: landing-trace-drift linear both;
+      animation-timeline: view();
+    }
+
+    @keyframes landing-trace-drift {
+      from { transform: translate3d(-22px, -32px, 0); }
+      to { transform: translate3d(14px, 32px, 0); }
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .landing-trace { width: min(44%, 195px); opacity: .23; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-spotlight { display: none; }
+}

@@ -7,4 +7,4 @@ export async function ask(question: string, history: string[] = [], previousPlan
     signal: AbortSignal.timeout(35000)
   });
 }
-export const getAssistantStatus = () => http<{ mode: string; configured: boolean; examples: string[] }>('/api/chat/status');
+export const getAssistantStatus = () => http<{ mode: string; configured: boolean; provider?: 'ollama' | 'gemini' | null; examples: string[] }>('/api/chat/status');

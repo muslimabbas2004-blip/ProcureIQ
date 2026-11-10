@@ -7,13 +7,13 @@ ProcureIQ is an executive-grade procurement intelligence platform designed to tr
 ## ✨ Features
 
 - **Executive Overview Dashboard**: High-level procurement KPIs, monthly spend trends (interactive Area/Bar toggle), spend-share progress bars, and recent purchase orders.
-- **AI Procurement Assistant**: Natural language query engine capable of comparing supplier unit prices, tracking material inflation, identifying cost-saving opportunities, and profiling suppliers.
+- **AI Procurement Assistant** — Ask about suppliers, spend, and unit prices. Common requests query the local data directly. Optional Ollama or Gemini planning supports more flexible questions.
 - **Price Intelligence & Benchmarking**: Side-by-side unit price comparisons across suppliers, historical price ranges, and monthly average price trends.
-- **Supplier Analytics**: Comparative radar charts benchmarking supplier spend, order frequency, item variety, price competitiveness, and volatility.
+- **Supplier Analytics** — Compare two suppliers with paired bars and see the underlying figures for spend, orders, item variety, and pricing.
 - **Smart Multi-File Admin Console**:
   - Drag-and-drop 2–3+ files simultaneously (`.csv`, `.xlsx`, `.xls`).
   - Automatic dataset type detection (`Vendors`, `Item Master`, `Purchase Orders`, `PO Line Items`, `Quotations`, `Historical Purchases`).
-  - Real-time schema validation, data preview, and 1-click batch ingestion into the relational database.
+  - Schema validation, data preview, and batch ingestion into the local data store.
 - **Data Catalog & Export**: Searchable, sortable tables for materials, purchase orders, and vendor spending with instant CSV export.
 
 ---
@@ -21,7 +21,7 @@ ProcureIQ is an executive-grade procurement intelligence platform designed to tr
 ## 🛠️ Tech Stack
 
 - **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons, Recharts, PapaParse, XLSX
-- **Backend**: Node.js, Express, TypeScript, TSX, Cookie-Parser, Multer, In-memory/Relational Data Store
+- **Backend** — Node.js, Express, TypeScript, TSX, Cookie-Parser, Multer, and a local data store with file persistence
 - **Proxy**: Vite reverse proxy forwarding `/api` to port `8080`
 
 ---
@@ -30,13 +30,8 @@ ProcureIQ is an executive-grade procurement intelligence platform designed to tr
 
 ### 1. Install Dependencies
 ```bash
-# Install frontend dependencies
-npm install
-
-# Install server dependencies
-cd server
-npm install
-cd ..
+npm ci
+npm --prefix server ci
 ```
 
 ### 2. Run the Application
@@ -52,6 +47,13 @@ npm run dev
 ```
 
 Open your browser to [http://localhost:5173](http://localhost:5173).
+
+### 3. Optional assistant model
+
+The assistant handles common questions with the built-in planner. For local AI
+planning, install Ollama, pull a model your machine can run, and set
+`OLLAMA_MODEL` in `server/.env`. See [assistant setup](ASSISTANT.md) for model
+configuration and verification.
 
 ---
 
@@ -77,7 +79,7 @@ Open your browser to [http://localhost:5173](http://localhost:5173).
 | `GET` | `/api/items` | Item master catalog and average prices |
 | `GET` | `/api/purchase-orders` | Purchase orders register |
 | `GET` | `/api/analytics/expenditure` | Monthly spend & category breakdown |
-| `GET` | `/api/analytics/vendor-comparison` | Head-to-head supplier radar metrics |
+| `GET` | `/api/analytics/vendor-comparison` | Supplier profiles and normalized comparison scores |
 | `GET` | `/api/analytics/price-trends` | Item historical price trend and savings |
 | `GET` | `/api/admin/stats` | Live database record counts |
 | `POST` | `/api/admin/datasets/validate` | Schema validation |

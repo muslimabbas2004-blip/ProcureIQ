@@ -9,7 +9,7 @@ import * as chatController from './controllers/chatController.js';
 import * as dataController from './controllers/dataController.js';
 import * as analyticsController from './controllers/analyticsController.js';
 import * as adminController from './controllers/adminController.js';
-import { assistantStatus } from './services/geminiService.js';
+import { assistantStatus } from './services/assistantService.js';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
